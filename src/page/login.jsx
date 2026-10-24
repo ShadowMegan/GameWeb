@@ -32,10 +32,10 @@ const EMPTY_REGISTER_FORM = {
   confirmPassword: '',
 }
 
-const inputBase = 'mc-input px-4 py-3'
-const labelClass = 'mc-label mb-2 block'
-const errorText = 'mc-error mt-1.5'
-const inputState = (hasError) => (hasError ? 'mc-input-error' : '')
+const inputBase = 'arcade-input px-4 py-3'
+const labelClass = 'arcade-label mb-2 block'
+const errorText = 'arcade-error mt-1.5'
+const inputState = (hasError) => (hasError ? 'arcade-input-error' : '')
 
 function loadUsers() {
   try {
@@ -252,16 +252,16 @@ function FormMessage({ status }) {
 
   const isError = status.type === 'error'
   const styles = isError
-    ? 'mc-message-error'
+    ? 'arcade-message-error'
     : status.type === 'info'
-      ? 'mc-message-info'
-      : 'mc-message-success'
+      ? 'arcade-message-info'
+      : 'arcade-message-success'
 
   return (
     <div
       role={isError ? 'alert' : 'status'}
       aria-live="polite"
-      className={`mc-message ${styles}`}
+      className={`arcade-message ${styles}`}
     >
       <svg
         className="mt-0.5 h-5 w-5 shrink-0"
@@ -309,7 +309,7 @@ function PasswordField({
         <label htmlFor={id} className={labelClass}>
           {label}
         </label>
-        {hint && <span className="mc-hint">{hint}</span>}
+        {hint && <span className="arcade-hint">{hint}</span>}
       </div>
       <div className="relative">
         <input
@@ -329,7 +329,7 @@ function PasswordField({
           type="button"
           onClick={onToggle}
           aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-          className="mc-eye absolute inset-y-0 right-0 flex items-center px-4 focus:outline-none"
+          className="arcade-eye absolute inset-y-0 right-0 flex items-center px-4 focus:outline-none"
         >
           {visible ? (
             <svg
@@ -682,30 +682,44 @@ function LoginPage() {
     view === 'register' ? 'max-w-xl' : view === 'profile' ? 'max-w-2xl' : 'max-w-md'
 
   return (
-    <main className="mc-world relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
-      <div className="mc-sun" aria-hidden="true" />
-      <div className="mc-cloud mc-cloud-a" aria-hidden="true" />
-      <div className="mc-cloud mc-cloud-b" aria-hidden="true" />
-      <div className="mc-cloud mc-cloud-c" aria-hidden="true" />
-      <div className="mc-float-block mc-float-a" aria-hidden="true" />
-      <div className="mc-float-block mc-float-b" aria-hidden="true" />
+    <main className="arcade-world relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
+      <div className="arcade-sun" aria-hidden="true" />
+      <div className="arcade-glow arcade-glow-pink" aria-hidden="true" />
+      <div className="arcade-glow arcade-glow-cyan" aria-hidden="true" />
+      <div className="arcade-scanlines" aria-hidden="true" />
 
       <section
-        className={`mc-panel relative w-full ${cardWidth} overflow-hidden p-6 transition-[max-width] duration-300 sm:p-10`}
+        className={`arcade-panel relative w-full ${cardWidth} overflow-hidden p-6 transition-[max-width] duration-300 sm:p-10`}
       >
         <header className="mb-7 text-center">
-          <div className="mc-grass-block mx-auto mb-4" aria-hidden="true" />
-          <h1 className="mc-title">{heading.title}</h1>
-          <p className="mc-subtitle">{heading.subtitle}</p>
+          <div className="arcade-logo mx-auto mb-4" aria-hidden="true">
+            <svg
+              className="h-9 w-9"
+              viewBox="0 0 32 32"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="square"
+              strokeLinejoin="miter"
+            >
+              <rect x="7" y="3" width="18" height="26" />
+              <rect x="10" y="6" width="12" height="8" />
+              <path d="M13 20h6M16 20v-3M16 17l2-2" />
+              <path d="M11 25h2M15 25h2M19 25h2" strokeWidth="2.4" />
+            </svg>
+          </div>
+          <h1 className="arcade-title">{heading.title}</h1>
+          <p className="arcade-subtitle">{heading.subtitle}</p>
+          {view !== 'profile' && <p className="arcade-coin">INSERT COIN</p>}
         </header>
 
         {view !== 'profile' && (
-          <div className="mc-tabs">
+          <div className="arcade-tabs">
             <button
               type="button"
               onClick={() => switchView('login')}
               aria-pressed={view === 'login'}
-              className={`mc-tab ${view === 'login' ? 'mc-tab-active' : ''}`}
+              className={`arcade-tab ${view === 'login' ? 'arcade-tab-active' : ''}`}
             >
               Iniciar sesión
             </button>
@@ -713,7 +727,7 @@ function LoginPage() {
               type="button"
               onClick={() => switchView('register')}
               aria-pressed={view === 'register'}
-              className={`mc-tab ${view === 'register' ? 'mc-tab-active' : ''}`}
+              className={`arcade-tab ${view === 'register' ? 'arcade-tab-active' : ''}`}
             >
               Registrarme
             </button>
@@ -772,17 +786,17 @@ function LoginPage() {
             <button
               type="submit"
               disabled={loginBusy}
-              className="mc-btn mc-btn-grass w-full px-4 py-3"
+              className="arcade-btn arcade-btn-primary w-full px-4 py-3"
             >
               {loginBusy ? 'Verificando...' : 'Iniciar sesión'}
             </button>
 
-            <p className="mc-hint text-center">
+            <p className="arcade-hint text-center">
               ¿Aún no tienes cuenta?{' '}
               <button
                 type="button"
                 onClick={() => switchView('register')}
-                className="mc-link"
+                className="arcade-link"
               >
                 Crea tu perfil aquí
               </button>
@@ -828,7 +842,7 @@ function LoginPage() {
               <div>
                 <label htmlFor="register-phone" className={labelClass}>
                   Teléfono{' '}
-                  <span className="mc-optional">(opcional)</span>
+                  <span className="arcade-optional">(opcional)</span>
                 </label>
                 <input
                   id="register-phone"
@@ -897,12 +911,12 @@ function LoginPage() {
                   autoComplete="off"
                   value={registerForm.dni}
                   onChange={handleRegisterChange}
-                  placeholder="8 dígitos, sin letras"
+                  placeholder="8 dígitos"
                   aria-invalid={Boolean(registerErrors.dni)}
                   aria-describedby={
                     registerErrors.dni ? 'register-dni-error' : undefined
                   }
-                  className={`${inputBase} tracking-[0.3em] ${inputState(
+                  className={`${inputBase} ${inputState(
                     Boolean(registerErrors.dni),
                   )}`}
                 />
@@ -949,7 +963,7 @@ function LoginPage() {
               <div>
                 <label htmlFor="register-username" className={labelClass}>
                   Nombre de usuario{' '}
-                  <span className="mc-optional">(opcional)</span>
+                  <span className="arcade-optional">(opcional)</span>
                 </label>
                 <input
                   id="register-username"
@@ -976,7 +990,7 @@ function LoginPage() {
                 ) : (
                   <p
                     id="register-username-help"
-                    className="mc-hint mt-1.5"
+                    className="arcade-hint mt-1.5"
                   >
                     Si lo dejas vacío, crearemos uno por ti.
                   </p>
@@ -988,9 +1002,9 @@ function LoginPage() {
               <div className="mb-2 flex items-center justify-between">
                 <label htmlFor="register-description" className={labelClass}>
                   Descripción corta o juegos favoritos{' '}
-                  <span className="mc-optional">(opcional)</span>
+                  <span className="arcade-optional">(opcional)</span>
                 </label>
-                <span className="mc-hint">
+                <span className="arcade-hint">
                   {registerForm.description.length}/{MAX_DESCRIPTION_LENGTH}
                 </span>
               </div>
@@ -1052,7 +1066,7 @@ function LoginPage() {
             <button
               type="submit"
               disabled={registerBusy}
-              className="mc-btn mc-btn-grass w-full px-4 py-3"
+              className="arcade-btn arcade-btn-primary w-full px-4 py-3"
             >
               {registerBusy ? 'Creando perfil...' : 'Crear mi cuenta'}
             </button>
@@ -1061,50 +1075,50 @@ function LoginPage() {
 
         {view === 'profile' && sessionUser && (
           <div key="profile" className="animate-fade-slide space-y-6">
-            <div className="mc-card p-5">
+            <div className="arcade-card p-5">
               <div className="flex flex-wrap items-center gap-4">
-                <div className="mc-avatar flex h-16 w-16 items-center justify-center text-xl font-bold">
+                <div className="arcade-avatar flex h-16 w-16 items-center justify-center text-xl font-bold">
                   {getInitials(sessionUser)}
                 </div>
                 <div className="min-w-0">
-                  <p className="mc-profile-name truncate">
+                  <p className="arcade-profile-name truncate">
                     @{sessionUser.username}
                   </p>
-                  <p className="mc-hint">
+                  <p className="arcade-hint">
                     {sessionUser.name} · DNI {sessionUser.dni}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="mc-btn mc-btn-stone mc-btn-sm ml-auto"
+                  className="arcade-btn arcade-btn-secondary arcade-btn-sm ml-auto"
                 >
                   Cerrar sesión
                 </button>
               </div>
 
               {sessionUser.description && (
-                <p className="mc-subcard mc-meta-value mt-4 p-3">
+                <p className="arcade-subcard arcade-meta-value mt-4 p-3">
                   {sessionUser.description}
                 </p>
               )}
 
               <dl className="mt-4 grid gap-3 sm:grid-cols-3">
-                <div className="mc-subcard p-3">
-                  <dt className="mc-meta-label">Correo</dt>
-                  <dd className="mc-meta-value mt-1 truncate">
+                <div className="arcade-subcard p-3">
+                  <dt className="arcade-meta-label">Correo</dt>
+                  <dd className="arcade-meta-value mt-1 truncate">
                     {sessionUser.email}
                   </dd>
                 </div>
-                <div className="mc-subcard p-3">
-                  <dt className="mc-meta-label">Teléfono</dt>
-                  <dd className="mc-meta-value mt-1">
+                <div className="arcade-subcard p-3">
+                  <dt className="arcade-meta-label">Teléfono</dt>
+                  <dd className="arcade-meta-value mt-1">
                     {sessionUser.phone || 'No registrado'}
                   </dd>
                 </div>
-                <div className="mc-subcard p-3">
-                  <dt className="mc-meta-label">Género</dt>
-                  <dd className="mc-meta-value mt-1">{sessionUser.gender}</dd>
+                <div className="arcade-subcard p-3">
+                  <dt className="arcade-meta-label">Género</dt>
+                  <dd className="arcade-meta-value mt-1">{sessionUser.gender}</dd>
                 </div>
               </dl>
             </div>
@@ -1117,7 +1131,7 @@ function LoginPage() {
                   <label htmlFor="profile-username" className={labelClass}>
                     Nombre de usuario
                   </label>
-                  <span className="mc-hint">
+                  <span className="arcade-hint">
                     Se muestra como @{profileForm.username || 'usuario'}
                   </span>
                 </div>
@@ -1156,7 +1170,7 @@ function LoginPage() {
                 ) : (
                   <p
                     id="profile-username-help"
-                    className="mc-hint mt-1.5"
+                    className="arcade-hint mt-1.5"
                   >
                     3 a 20 caracteres: letras, números o guion bajo.
                   </p>
@@ -1168,7 +1182,7 @@ function LoginPage() {
                   <label htmlFor="profile-description" className={labelClass}>
                     Descripción o juegos favoritos
                   </label>
-                  <span className="mc-hint">
+                  <span className="arcade-hint">
                     {profileForm.description.length}/{MAX_DESCRIPTION_LENGTH}
                   </span>
                 </div>
@@ -1209,7 +1223,7 @@ function LoginPage() {
 
               <button
                 type="submit"
-                className="mc-btn mc-btn-grass w-full px-4 py-3"
+                className="arcade-btn arcade-btn-primary w-full px-4 py-3"
               >
                 Guardar cambios
               </button>
@@ -1218,12 +1232,12 @@ function LoginPage() {
         )}
 
         {registerStatus?.type === 'success' && (
-          <div className="mc-success-overlay absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 p-8 text-center">
+          <div className="arcade-success-overlay absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 p-8 text-center">
             <div className="relative flex h-24 w-24 items-center justify-center">
-              <span className="absolute inline-flex h-full w-full animate-ping bg-[#b7e46a]/30" />
-              <span className="relative flex h-20 w-20 animate-pop-in items-center justify-center border-4 border-[#2b1a0a] bg-[#4e8f2d] shadow-[inset_2px_2px_0_rgba(255,255,255,0.3),inset_-2px_-2px_0_rgba(0,0,0,0.3)]">
+              <span className="absolute inline-flex h-full w-full animate-ping bg-[#00e5ff]/40" />
+              <span className="relative flex h-20 w-20 animate-pop-in items-center justify-center border-4 border-[#ff2e88] bg-[#1a0033] shadow-[0_0_24px_rgba(255,46,136,0.8),inset_0_0_20px_rgba(0,229,255,0.35)]">
                 <svg
-                  className="h-10 w-10 text-[#d9f99d]"
+                  className="h-10 w-10 text-[#00e5ff]"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -1239,15 +1253,15 @@ function LoginPage() {
                 </svg>
               </span>
             </div>
-            <h2 className="animate-fade-slide font-pixel text-lg leading-relaxed text-[#d9f99d] sm:text-xl">
+            <h2 className="arcade-success-title animate-fade-slide text-lg leading-relaxed sm:text-xl">
               REGISTRO EXITOSO
             </h2>
-            <p className="max-w-xs animate-fade-slide text-xl leading-tight text-[#d8e8c0]">
+            <p className="max-w-xs animate-fade-slide text-xl leading-tight text-[#d9c8ff]">
               Tu perfil fue creado. Te llevaremos al inicio de sesión con el DNI{' '}
-              <span className="font-bold text-white">{pendingDni}</span>.
+              <span className="font-bold text-[#ffd319]">{pendingDni}</span>.
             </p>
-            <div className="h-2 w-40 overflow-hidden border-2 border-[#2b1a0a] bg-[#0f1f0a]">
-              <div className="h-full w-full origin-left animate-progress bg-[#b7e46a]" />
+            <div className="h-2 w-40 overflow-hidden border-2 border-[#ff2e88] bg-[#12002b]">
+              <div className="arcade-progress-fill h-full w-full origin-left animate-progress" />
             </div>
           </div>
         )}

@@ -2,6 +2,14 @@
 
 Single-package React + Vite frontend (JavaScript, not TypeScript). Still on the Vite starter template in `src/App.jsx`; GameWeb features have not been built yet.
 
+## Reglas del proyecto
+
+- Responde siempre en español.
+- Usa solo React y Tailwind para construir la interfaz.
+- Cada pantalla debe cumplir con sus criterios de aceptación.
+- Explica qué archivos cambias y por qué en cada entrega.
+- Usa datos de prueba; nunca datos reales ni credenciales reales.
+
 ## Commands
 
 - `npm run dev` — Vite dev server
