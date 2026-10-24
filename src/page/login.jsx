@@ -32,14 +32,10 @@ const EMPTY_REGISTER_FORM = {
   confirmPassword: '',
 }
 
-const inputBase =
-  'w-full rounded-xl border bg-slate-900/60 px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition focus:ring-2'
-const labelClass = 'mb-2 block text-sm font-medium text-slate-200'
-const errorText = 'mt-1.5 text-xs text-red-300'
-const inputState = (hasError) =>
-  hasError
-    ? 'border-red-400/60 focus:border-red-400 focus:ring-red-500/30'
-    : 'border-white/10 focus:border-indigo-400 focus:ring-indigo-500/30'
+const inputBase = 'mc-input px-4 py-3'
+const labelClass = 'mc-label mb-2 block'
+const errorText = 'mc-error mt-1.5'
+const inputState = (hasError) => (hasError ? 'mc-input-error' : '')
 
 function loadUsers() {
   try {
@@ -256,16 +252,16 @@ function FormMessage({ status }) {
 
   const isError = status.type === 'error'
   const styles = isError
-    ? 'border-red-400/30 bg-red-500/10 text-red-200'
+    ? 'mc-message-error'
     : status.type === 'info'
-      ? 'border-sky-400/30 bg-sky-500/10 text-sky-200'
-      : 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
+      ? 'mc-message-info'
+      : 'mc-message-success'
 
   return (
     <div
       role={isError ? 'alert' : 'status'}
       aria-live="polite"
-      className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${styles}`}
+      className={`mc-message ${styles}`}
     >
       <svg
         className="mt-0.5 h-5 w-5 shrink-0"
@@ -313,7 +309,7 @@ function PasswordField({
         <label htmlFor={id} className={labelClass}>
           {label}
         </label>
-        {hint && <span className="text-xs text-slate-500">{hint}</span>}
+        {hint && <span className="mc-hint">{hint}</span>}
       </div>
       <div className="relative">
         <input
@@ -333,7 +329,7 @@ function PasswordField({
           type="button"
           onClick={onToggle}
           aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-          className="absolute inset-y-0 right-0 flex items-center px-4 text-slate-400 transition hover:text-indigo-300 focus:outline-none focus-visible:text-indigo-300"
+          className="mc-eye absolute inset-y-0 right-0 flex items-center px-4 focus:outline-none"
         >
           {visible ? (
             <svg
@@ -686,53 +682,30 @@ function LoginPage() {
     view === 'register' ? 'max-w-xl' : view === 'profile' ? 'max-w-2xl' : 'max-w-md'
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4 py-10 text-slate-100">
-      <div className="pointer-events-none absolute -top-32 -left-24 h-80 w-80 rounded-full bg-indigo-600/30 blur-3xl" />
-      <div className="pointer-events-none absolute -right-24 -bottom-32 h-80 w-80 rounded-full bg-cyan-500/20 blur-3xl" />
+    <main className="mc-world relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
+      <div className="mc-sun" aria-hidden="true" />
+      <div className="mc-cloud mc-cloud-a" aria-hidden="true" />
+      <div className="mc-cloud mc-cloud-b" aria-hidden="true" />
+      <div className="mc-cloud mc-cloud-c" aria-hidden="true" />
+      <div className="mc-float-block mc-float-a" aria-hidden="true" />
+      <div className="mc-float-block mc-float-b" aria-hidden="true" />
 
       <section
-        className={`relative w-full ${cardWidth} overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-xl transition-[max-width] duration-300 sm:p-10`}
+        className={`mc-panel relative w-full ${cardWidth} overflow-hidden p-6 transition-[max-width] duration-300 sm:p-10`}
       >
         <header className="mb-7 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-400/30">
-            <svg
-              className="h-7 w-7"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              role="presentation"
-              aria-hidden="true"
-            >
-              <path
-                d="M17.5 6.5h-11A4.5 4.5 0 0 0 2 11v2.5A3.5 3.5 0 0 0 8.4 16l1.2-1.5h4.8l1.2 1.5A3.5 3.5 0 0 0 22 13.5V11a4.5 4.5 0 0 0-4.5-4.5Z"
-                strokeLinejoin="round"
-              />
-              <path d="M6 12h4M8 10v4" strokeLinecap="round" />
-              <path
-                d="M15 11h.01M17.5 13h.01"
-                strokeLinecap="round"
-                strokeWidth="2.4"
-              />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            {heading.title}
-          </h1>
-          <p className="mt-2 text-sm text-slate-400">{heading.subtitle}</p>
+          <div className="mc-grass-block mx-auto mb-4" aria-hidden="true" />
+          <h1 className="mc-title">{heading.title}</h1>
+          <p className="mc-subtitle">{heading.subtitle}</p>
         </header>
 
         {view !== 'profile' && (
-          <div className="mb-6 grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-slate-900/60 p-1">
+          <div className="mc-tabs">
             <button
               type="button"
               onClick={() => switchView('login')}
               aria-pressed={view === 'login'}
-              className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
-                view === 'login'
-                  ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-950/40'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className={`mc-tab ${view === 'login' ? 'mc-tab-active' : ''}`}
             >
               Iniciar sesión
             </button>
@@ -740,11 +713,7 @@ function LoginPage() {
               type="button"
               onClick={() => switchView('register')}
               aria-pressed={view === 'register'}
-              className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
-                view === 'register'
-                  ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-950/40'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className={`mc-tab ${view === 'register' ? 'mc-tab-active' : ''}`}
             >
               Registrarme
             </button>
@@ -803,17 +772,17 @@ function LoginPage() {
             <button
               type="submit"
               disabled={loginBusy}
-              className="w-full rounded-xl bg-indigo-500 px-4 py-3 font-semibold text-white shadow-lg shadow-indigo-950/40 transition hover:bg-indigo-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mc-btn mc-btn-grass w-full px-4 py-3"
             >
               {loginBusy ? 'Verificando...' : 'Iniciar sesión'}
             </button>
 
-            <p className="text-center text-xs text-slate-500">
+            <p className="mc-hint text-center">
               ¿Aún no tienes cuenta?{' '}
               <button
                 type="button"
                 onClick={() => switchView('register')}
-                className="font-semibold text-indigo-300 transition hover:text-indigo-200"
+                className="mc-link"
               >
                 Crea tu perfil aquí
               </button>
@@ -859,7 +828,7 @@ function LoginPage() {
               <div>
                 <label htmlFor="register-phone" className={labelClass}>
                   Teléfono{' '}
-                  <span className="font-normal text-slate-500">(opcional)</span>
+                  <span className="mc-optional">(opcional)</span>
                 </label>
                 <input
                   id="register-phone"
@@ -980,7 +949,7 @@ function LoginPage() {
               <div>
                 <label htmlFor="register-username" className={labelClass}>
                   Nombre de usuario{' '}
-                  <span className="font-normal text-slate-500">(opcional)</span>
+                  <span className="mc-optional">(opcional)</span>
                 </label>
                 <input
                   id="register-username"
@@ -1007,7 +976,7 @@ function LoginPage() {
                 ) : (
                   <p
                     id="register-username-help"
-                    className="mt-1.5 text-xs text-slate-500"
+                    className="mc-hint mt-1.5"
                   >
                     Si lo dejas vacío, crearemos uno por ti.
                   </p>
@@ -1019,9 +988,9 @@ function LoginPage() {
               <div className="mb-2 flex items-center justify-between">
                 <label htmlFor="register-description" className={labelClass}>
                   Descripción corta o juegos favoritos{' '}
-                  <span className="font-normal text-slate-500">(opcional)</span>
+                  <span className="mc-optional">(opcional)</span>
                 </label>
-                <span className="text-xs text-slate-500">
+                <span className="mc-hint">
                   {registerForm.description.length}/{MAX_DESCRIPTION_LENGTH}
                 </span>
               </div>
@@ -1083,7 +1052,7 @@ function LoginPage() {
             <button
               type="submit"
               disabled={registerBusy}
-              className="w-full rounded-xl bg-indigo-500 px-4 py-3 font-semibold text-white shadow-lg shadow-indigo-950/40 transition hover:bg-indigo-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mc-btn mc-btn-grass w-full px-4 py-3"
             >
               {registerBusy ? 'Creando perfil...' : 'Crear mi cuenta'}
             </button>
@@ -1092,50 +1061,50 @@ function LoginPage() {
 
         {view === 'profile' && sessionUser && (
           <div key="profile" className="animate-fade-slide space-y-6">
-            <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-5">
+            <div className="mc-card p-5">
               <div className="flex flex-wrap items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-500/15 text-xl font-bold text-indigo-200 ring-1 ring-indigo-400/30">
+                <div className="mc-avatar flex h-16 w-16 items-center justify-center text-xl font-bold">
                   {getInitials(sessionUser)}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-lg font-semibold text-white">
+                  <p className="mc-profile-name truncate">
                     @{sessionUser.username}
                   </p>
-                  <p className="text-sm text-slate-400">
+                  <p className="mc-hint">
                     {sessionUser.name} · DNI {sessionUser.dni}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="ml-auto rounded-xl border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                  className="mc-btn mc-btn-stone mc-btn-sm ml-auto"
                 >
                   Cerrar sesión
                 </button>
               </div>
 
               {sessionUser.description && (
-                <p className="mt-4 rounded-xl border border-white/10 bg-slate-950/40 p-3 text-sm text-slate-300">
+                <p className="mc-subcard mc-meta-value mt-4 p-3">
                   {sessionUser.description}
                 </p>
               )}
 
-              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-                <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
-                  <dt className="text-xs text-slate-500">Correo</dt>
-                  <dd className="mt-1 truncate text-slate-200">
+              <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="mc-subcard p-3">
+                  <dt className="mc-meta-label">Correo</dt>
+                  <dd className="mc-meta-value mt-1 truncate">
                     {sessionUser.email}
                   </dd>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
-                  <dt className="text-xs text-slate-500">Teléfono</dt>
-                  <dd className="mt-1 text-slate-200">
+                <div className="mc-subcard p-3">
+                  <dt className="mc-meta-label">Teléfono</dt>
+                  <dd className="mc-meta-value mt-1">
                     {sessionUser.phone || 'No registrado'}
                   </dd>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
-                  <dt className="text-xs text-slate-500">Género</dt>
-                  <dd className="mt-1 text-slate-200">{sessionUser.gender}</dd>
+                <div className="mc-subcard p-3">
+                  <dt className="mc-meta-label">Género</dt>
+                  <dd className="mc-meta-value mt-1">{sessionUser.gender}</dd>
                 </div>
               </dl>
             </div>
@@ -1148,7 +1117,7 @@ function LoginPage() {
                   <label htmlFor="profile-username" className={labelClass}>
                     Nombre de usuario
                   </label>
-                  <span className="text-xs text-slate-500">
+                  <span className="mc-hint">
                     Se muestra como @{profileForm.username || 'usuario'}
                   </span>
                 </div>
@@ -1187,7 +1156,7 @@ function LoginPage() {
                 ) : (
                   <p
                     id="profile-username-help"
-                    className="mt-1.5 text-xs text-slate-500"
+                    className="mc-hint mt-1.5"
                   >
                     3 a 20 caracteres: letras, números o guion bajo.
                   </p>
@@ -1199,7 +1168,7 @@ function LoginPage() {
                   <label htmlFor="profile-description" className={labelClass}>
                     Descripción o juegos favoritos
                   </label>
-                  <span className="text-xs text-slate-500">
+                  <span className="mc-hint">
                     {profileForm.description.length}/{MAX_DESCRIPTION_LENGTH}
                   </span>
                 </div>
@@ -1240,7 +1209,7 @@ function LoginPage() {
 
               <button
                 type="submit"
-                className="w-full rounded-xl bg-indigo-500 px-4 py-3 font-semibold text-white shadow-lg shadow-indigo-950/40 transition hover:bg-indigo-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                className="mc-btn mc-btn-grass w-full px-4 py-3"
               >
                 Guardar cambios
               </button>
@@ -1249,12 +1218,12 @@ function LoginPage() {
         )}
 
         {registerStatus?.type === 'success' && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-3xl bg-slate-950/90 p-8 text-center backdrop-blur-md">
+          <div className="mc-success-overlay absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 p-8 text-center">
             <div className="relative flex h-24 w-24 items-center justify-center">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/20" />
-              <span className="relative flex h-20 w-20 animate-pop-in items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-400/40">
+              <span className="absolute inline-flex h-full w-full animate-ping bg-[#b7e46a]/30" />
+              <span className="relative flex h-20 w-20 animate-pop-in items-center justify-center border-4 border-[#2b1a0a] bg-[#4e8f2d] shadow-[inset_2px_2px_0_rgba(255,255,255,0.3),inset_-2px_-2px_0_rgba(0,0,0,0.3)]">
                 <svg
-                  className="h-10 w-10 text-emerald-300"
+                  className="h-10 w-10 text-[#d9f99d]"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -1270,15 +1239,15 @@ function LoginPage() {
                 </svg>
               </span>
             </div>
-            <h2 className="animate-fade-slide text-2xl font-bold tracking-wide text-emerald-200">
+            <h2 className="animate-fade-slide font-pixel text-lg leading-relaxed text-[#d9f99d] sm:text-xl">
               REGISTRO EXITOSO
             </h2>
-            <p className="max-w-xs animate-fade-slide text-sm text-slate-300">
+            <p className="max-w-xs animate-fade-slide text-xl leading-tight text-[#d8e8c0]">
               Tu perfil fue creado. Te llevaremos al inicio de sesión con el DNI{' '}
-              <span className="font-semibold text-white">{pendingDni}</span>.
+              <span className="font-bold text-white">{pendingDni}</span>.
             </p>
-            <div className="h-1.5 w-40 overflow-hidden rounded-full bg-white/10">
-              <div className="h-full w-full origin-left animate-progress rounded-full bg-emerald-400" />
+            <div className="h-2 w-40 overflow-hidden border-2 border-[#2b1a0a] bg-[#0f1f0a]">
+              <div className="h-full w-full origin-left animate-progress bg-[#b7e46a]" />
             </div>
           </div>
         )}

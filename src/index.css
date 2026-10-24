@@ -1,6 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
 @import "tailwindcss";
 
 @theme {
+  --font-pixel: 'Press Start 2P', 'Courier New', monospace;
+  --font-pixel-body: 'VT323', 'Courier New', monospace;
+
   --animate-fade-slide: fade-slide 0.35s ease-out both;
   --animate-pop-in: pop-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-progress: progress 2.2s linear forwards;
@@ -38,5 +42,453 @@
     to {
       transform: scaleX(1);
     }
+  }
+}
+
+body {
+  font-family: var(--font-pixel-body);
+}
+
+/* Fondo tipo mundo de Minecraft */
+.mc-world {
+  background: linear-gradient(#78c6f2 0%, #a9ddf8 52%, #d2ecf9 64%, #e6f5fb 100%);
+  image-rendering: pixelated;
+}
+
+.mc-world::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 42%;
+  border-top: 4px solid #2b1a0a;
+  background-color: #7a5230;
+  background-image:
+    linear-gradient(to bottom, #6fbf3f 0 18px, #4e8f2d 18px 26px, transparent 26px),
+    repeating-linear-gradient(0deg, transparent 0 30px, rgba(43, 26, 10, 0.22) 30px 32px),
+    repeating-linear-gradient(90deg, transparent 0 30px, rgba(43, 26, 10, 0.22) 30px 32px);
+  box-shadow: inset 0 10px 0 rgba(255, 255, 255, 0.08);
+}
+
+.mc-sun {
+  position: absolute;
+  top: 32px;
+  right: 40px;
+  width: 64px;
+  height: 64px;
+  border: 4px solid #d69e00;
+  background: #ffe066;
+  box-shadow:
+    inset 6px 6px 0 #fff3a0,
+    inset -6px -6px 0 #e8b923;
+}
+
+.mc-cloud {
+  position: absolute;
+  width: 72px;
+  height: 24px;
+  background: #f7fcff;
+  box-shadow:
+    24px -20px 0 #f7fcff,
+    48px 0 0 #f7fcff,
+    72px -14px 0 #f7fcff,
+    0 4px 0 #d9eef7;
+  opacity: 0.9;
+}
+
+.mc-cloud-a {
+  top: 10%;
+  left: 7%;
+}
+
+.mc-cloud-b {
+  top: 20%;
+  right: 12%;
+  transform: scale(0.8);
+}
+
+.mc-cloud-c {
+  top: 36%;
+  left: 20%;
+  transform: scale(0.6);
+  opacity: 0.65;
+}
+
+.mc-float-block {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  border: 4px solid #2b1a0a;
+  background: linear-gradient(
+    to bottom,
+    #6fbf3f 0 14px,
+    #4e8f2d 14px 18px,
+    #8a5a33 18px 100%
+  );
+  box-shadow:
+    inset 3px 3px 0 rgba(255, 255, 255, 0.25),
+    inset -3px -3px 0 rgba(0, 0, 0, 0.3);
+}
+
+.mc-float-a {
+  top: 16%;
+  left: 5%;
+  transform: rotate(-6deg);
+}
+
+.mc-float-b {
+  right: 6%;
+  bottom: 14%;
+  transform: rotate(8deg) scale(0.85);
+}
+
+/* Panel principal con marco de madera */
+.mc-panel {
+  background-color: #efe0bd;
+  background-image:
+    radial-gradient(rgba(120, 85, 48, 0.1) 1px, transparent 1px),
+    repeating-linear-gradient(90deg, rgba(120, 85, 48, 0.04) 0 2px, transparent 2px 14px);
+  background-size: 8px 8px, auto;
+  border: 4px solid #2b1a0a;
+  border-radius: 0;
+  box-shadow:
+    inset 0 0 0 4px #7a5230,
+    inset 0 0 0 7px #c49a63,
+    0 8px 0 rgba(31, 20, 10, 0.45),
+    0 16px 30px rgba(0, 0, 0, 0.28);
+  image-rendering: pixelated;
+}
+
+.mc-grass-block {
+  width: 56px;
+  height: 56px;
+  border: 4px solid #2b1a0a;
+  background-image:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.07) 0 4px, transparent 4px 8px),
+    linear-gradient(
+      to bottom,
+      #6fbf3f 0 16px,
+      #4e8f2d 16px 22px,
+      #8a5a33 22px 100%
+    );
+  box-shadow:
+    inset 3px 3px 0 rgba(255, 255, 255, 0.25),
+    inset -3px -3px 0 rgba(0, 0, 0, 0.28);
+}
+
+.mc-title {
+  font-family: var(--font-pixel);
+  font-size: clamp(0.9rem, 2.4vw, 1.2rem);
+  line-height: 1.7;
+  color: #2f2013;
+  text-shadow: 2px 2px 0 #fff6da;
+}
+
+.mc-subtitle {
+  margin-top: 0.5rem;
+  font-family: var(--font-pixel-body);
+  font-size: 1.3rem;
+  line-height: 1.1;
+  color: #5b3a1e;
+}
+
+.mc-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 1.5rem;
+  padding: 6px;
+  border: 3px solid #2b1a0a;
+  background: #3e2712;
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.mc-tab {
+  padding: 0.7rem 0.5rem;
+  border: 3px solid #2b1a0a;
+  background: #7a5230;
+  color: #f7ecc9;
+  font-family: var(--font-pixel);
+  font-size: 0.56rem;
+  line-height: 1.5;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.45);
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.22),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.28);
+  transition:
+    filter 0.15s,
+    transform 0.08s;
+  cursor: pointer;
+}
+
+.mc-tab:hover {
+  filter: brightness(1.12);
+}
+
+.mc-tab:active {
+  transform: translateY(2px);
+}
+
+.mc-tab-active {
+  background: #5b9b3a;
+  color: #ffffff;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.32),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Botones con aspecto de bloque */
+.mc-btn {
+  border: 3px solid #2b1a0a;
+  border-radius: 0;
+  color: #ffffff;
+  font-family: var(--font-pixel);
+  font-size: 0.65rem;
+  line-height: 1.5;
+  text-transform: uppercase;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.45);
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.32),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.32),
+    0 4px 0 #2b1a0a;
+  image-rendering: pixelated;
+  transition:
+    filter 0.15s,
+    transform 0.08s,
+    box-shadow 0.08s;
+  cursor: pointer;
+}
+
+.mc-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.mc-btn:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.32),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.32),
+    0 1px 0 #2b1a0a;
+}
+
+.mc-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mc-btn-grass {
+  background: linear-gradient(
+    to bottom,
+    #6fbf3f 0 62%,
+    #4e8f2d 62% 74%,
+    #8a5a33 74% 100%
+  );
+}
+
+.mc-btn-stone {
+  background: linear-gradient(to bottom, #9a9a9a 0 70%, #747474 100%);
+}
+
+.mc-btn-sm {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.52rem;
+}
+
+/* Campos de formulario */
+.mc-input {
+  width: 100%;
+  border: 3px solid #3e2712;
+  border-radius: 0;
+  background: #fbf3df;
+  color: #2f2013;
+  font-family: var(--font-pixel-body);
+  font-size: 1.25rem;
+  line-height: 1.2;
+  outline: none;
+  box-shadow:
+    inset 2px 2px 0 rgba(0, 0, 0, 0.16),
+    inset -2px -2px 0 rgba(255, 255, 255, 0.85);
+  transition:
+    box-shadow 0.15s,
+    border-color 0.15s;
+}
+
+.mc-input::placeholder {
+  color: #9c8663;
+  opacity: 1;
+}
+
+.mc-input:focus {
+  border-color: #4e8f2d;
+  box-shadow:
+    inset 2px 2px 0 rgba(0, 0, 0, 0.12),
+    0 0 0 3px rgba(111, 191, 63, 0.55);
+}
+
+.mc-input-error {
+  border-color: #a83a2c;
+  background: #fbe7df;
+}
+
+.mc-input-error:focus {
+  border-color: #a83a2c;
+  box-shadow:
+    inset 2px 2px 0 rgba(0, 0, 0, 0.12),
+    0 0 0 3px rgba(168, 58, 44, 0.35);
+}
+
+.mc-label {
+  font-family: var(--font-pixel-body);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #3e2712;
+}
+
+.mc-optional {
+  font-family: var(--font-pixel-body);
+  font-weight: 400;
+  color: #8a6a45;
+}
+
+.mc-hint {
+  font-family: var(--font-pixel-body);
+  font-size: 1.05rem;
+  line-height: 1.15;
+  color: #7a5230;
+}
+
+.mc-error {
+  font-family: var(--font-pixel-body);
+  font-size: 1.05rem;
+  line-height: 1.15;
+  color: #a83a2c;
+}
+
+.mc-eye {
+  color: #7a5230;
+  transition: color 0.15s;
+}
+
+.mc-eye:hover,
+.mc-eye:focus-visible {
+  color: #3f6f26;
+}
+
+.mc-link {
+  color: #2f5f1f;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.mc-link:hover {
+  color: #4e8f2d;
+}
+
+/* Mensajes de estado */
+.mc-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  border: 3px solid #2b1a0a;
+  border-radius: 0;
+  font-family: var(--font-pixel-body);
+  font-size: 1.2rem;
+  line-height: 1.1;
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.35);
+}
+
+.mc-message-success {
+  border-color: #2d4a1b;
+  background: #dff0c8;
+  color: #2d4a1b;
+}
+
+.mc-message-error {
+  border-color: #7a2418;
+  background: #f7d7cf;
+  color: #7a2418;
+}
+
+.mc-message-info {
+  border-color: #1f4c66;
+  background: #d8ecf8;
+  color: #1f4c66;
+}
+
+/* Tarjetas del perfil */
+.mc-card {
+  border: 3px solid #3e2712;
+  border-radius: 0;
+  background: #f6ecd2;
+  box-shadow:
+    inset 2px 2px 0 #fff9e8,
+    inset -2px -2px 0 #c9b183;
+}
+
+.mc-subcard {
+  border: 2px solid #7a5230;
+  border-radius: 0;
+  background: #fbf3df;
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.6);
+}
+
+.mc-avatar {
+  border: 3px solid #2b1a0a;
+  border-radius: 0;
+  background: #5b9b3a;
+  color: #ffffff;
+  font-family: var(--font-pixel);
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.3),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.25);
+}
+
+.mc-profile-name {
+  font-family: var(--font-pixel);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: #2f2013;
+  text-shadow: 1px 1px 0 #fff6da;
+}
+
+.mc-meta-label {
+  font-family: var(--font-pixel);
+  font-size: 0.5rem;
+  line-height: 1.5;
+  text-transform: uppercase;
+  color: #7a5230;
+}
+
+.mc-meta-value {
+  font-family: var(--font-pixel-body);
+  font-size: 1.2rem;
+  color: #2f2013;
+}
+
+/* Pantalla de registro exitoso */
+.mc-success-overlay {
+  border: 4px solid #2b1a0a;
+  border-radius: 0;
+  background-color: #1c3012;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.04) 0 8px,
+    transparent 8px 16px
+  );
+  box-shadow: inset 0 0 0 5px #4e8f2d;
+}
+
+@media (max-width: 640px) {
+  .mc-float-block,
+  .mc-cloud-c {
+    display: none;
+  }
+
+  .mc-world::before {
+    height: 36%;
   }
 }
