@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Check, CircleAlert, Eye, EyeOff, Gamepad2 } from 'lucide-react'
 
 const USERS_KEY = 'gameweb_users'
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
@@ -263,28 +264,11 @@ function FormMessage({ status }) {
       aria-live="polite"
       className={`arcade-message ${styles}`}
     >
-      <svg
-        className="mt-0.5 h-5 w-5 shrink-0"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        role="presentation"
-        aria-hidden="true"
-      >
-        {isError ? (
-          <>
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 8v5M12 16h.01" strokeLinecap="round" />
-          </>
-        ) : (
-          <path
-            d="m5 13 4 4L19 7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        )}
-      </svg>
+      {isError ? (
+        <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+      ) : (
+        <Check className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+      )}
       <p>{status.message}</p>
     </div>
   )
@@ -332,38 +316,9 @@ function PasswordField({
           className="arcade-eye absolute inset-y-0 right-0 flex items-center px-4 focus:outline-none"
         >
           {visible ? (
-            <svg
-              className="h-5 w-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              role="presentation"
-              aria-hidden="true"
-            >
-              <path
-                d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8"
-                strokeLinecap="round"
-              />
-              <path
-                d="M6.6 6.6C4.5 8 3 9.9 2 12c1.7 3.6 5.5 6.5 10 6.5 1.6 0 3.1-.4 4.5-1M9.9 5.7c.7-.1 1.4-.2 2.1-.2 4.5 0 8.3 2.9 10 6.5-.5 1.1-1.2 2.1-2 3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <EyeOff className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
           ) : (
-            <svg
-              className="h-5 w-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              role="presentation"
-              aria-hidden="true"
-            >
-              <path d="M2 12c1.7-3.6 5.5-6.5 10-6.5s8.3 2.9 10 6.5c-1.7 3.6-5.5 6.5-10 6.5S3.7 15.6 2 12Z" />
-              <circle cx="12" cy="12" r="2.5" />
-            </svg>
+            <Eye className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
           )}
         </button>
       </div>
@@ -693,20 +648,7 @@ function LoginPage() {
       >
         <header className="mb-7 text-center">
           <div className="arcade-logo mx-auto mb-4" aria-hidden="true">
-            <svg
-              className="h-9 w-9"
-              viewBox="0 0 32 32"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="square"
-              strokeLinejoin="miter"
-            >
-              <rect x="7" y="3" width="18" height="26" />
-              <rect x="10" y="6" width="12" height="8" />
-              <path d="M13 20h6M16 20v-3M16 17l2-2" />
-              <path d="M11 25h2M15 25h2M19 25h2" strokeWidth="2.4" />
-            </svg>
+            <Gamepad2 className="h-9 w-9" />
           </div>
           <h1 className="arcade-title">{heading.title}</h1>
           <p className="arcade-subtitle">{heading.subtitle}</p>
@@ -1236,21 +1178,11 @@ function LoginPage() {
             <div className="relative flex h-24 w-24 items-center justify-center">
               <span className="absolute inline-flex h-full w-full animate-ping bg-[#00e5ff]/40" />
               <span className="relative flex h-20 w-20 animate-pop-in items-center justify-center border-4 border-[#ff2e88] bg-[#1a0033] shadow-[0_0_24px_rgba(255,46,136,0.8),inset_0_0_20px_rgba(0,229,255,0.35)]">
-                <svg
+                <Check
                   className="h-10 w-10 text-[#00e5ff]"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  role="presentation"
+                  strokeWidth={2.2}
                   aria-hidden="true"
-                >
-                  <path
-                    d="m5 13 4 4L19 7"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                />
               </span>
             </div>
             <h2 className="arcade-success-title animate-fade-slide text-lg leading-relaxed sm:text-xl">
