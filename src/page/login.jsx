@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, CircleAlert, Eye, EyeOff, Gamepad2 } from 'lucide-react'
+import { ArrowLeft, Check, CircleAlert, Eye, EyeOff, Gamepad2 } from 'lucide-react'
+import GameCatalog from '../components/catalog.jsx'
 
 const USERS_KEY = 'gameweb_users'
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
@@ -508,7 +509,7 @@ function LoginPage() {
       setProfileErrors({})
       setProfileStatus(null)
       setLoginMessage(null)
-      setView('profile')
+      setView('catalog')
     } catch {
       setLoginMessage({
         type: 'error',
@@ -669,11 +670,22 @@ function LoginPage() {
       title: 'Tu perfil',
       subtitle: 'Cambia tu nombre de usuario y cuéntanos qué juegos te gustan.',
     },
+    catalog: {
+      title: 'Catálogo de juegos',
+      subtitle:
+        'Explora la sala GameWeb: busca por nombre o categoría y elige tu desafío.',
+    },
   }
 
   const heading = headings[view]
   const cardWidth =
-    view === 'register' ? 'max-w-xl' : view === 'profile' ? 'max-w-2xl' : 'max-w-md'
+    view === 'catalog'
+      ? 'max-w-5xl'
+      : view === 'register'
+        ? 'max-w-xl'
+        : view === 'profile'
+          ? 'max-w-2xl'
+          : 'max-w-md'
 
   return (
     <main className="arcade-world relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
@@ -694,7 +706,7 @@ function LoginPage() {
           {view !== 'profile' && <p className="arcade-coin">INSERT COIN</p>}
         </header>
 
-        {view !== 'profile' && (
+        {(view === 'login' || view === 'register') && (
           <div className="arcade-tabs">
             <button
               type="button"
@@ -1059,8 +1071,26 @@ function LoginPage() {
           </form>
         )}
 
+        {view === 'catalog' && sessionUser && (
+          <GameCatalog
+            user={sessionUser}
+            onEditProfile={() => switchView('profile')}
+            onLogout={handleLogout}
+          />
+        )}
+
         {view === 'profile' && sessionUser && (
           <div key="profile" className="animate-fade-slide space-y-6">
+            <div className="flex justify-start">
+              <button
+                type="button"
+                onClick={() => switchView('catalog')}
+                className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Volver al
+                catálogo
+              </button>
+            </div>
             <div className="arcade-card p-5">
               <div className="flex flex-wrap items-center gap-4">
                 <div className="arcade-avatar flex h-16 w-16 items-center justify-center text-xl font-bold">
