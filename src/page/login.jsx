@@ -20,6 +20,39 @@ const SUSPICIOUS_DOMAINS = [
   'sharklasers.com',
 ]
 
+// Datos de prueba (mock): contraseñas pre-haseadas (salt:password + SHA-256)
+// para poder iniciar sesión de inmediato sin registrarse.
+//   DNI 12345678 / jugador.test@gmail.com  -> contraseña: Arcade2024
+//   DNI 87654321 / jugador2.test@gmail.com -> contraseña: Password123
+const MOCK_USERS = {
+  12345678: {
+    dni: '12345678',
+    name: 'Jugador de Prueba',
+    phone: '987654321',
+    email: 'jugador.test@gmail.com',
+    gender: 'Femenino',
+    username: 'pixel_master',
+    description: 'Fan de los RPG y los arcades retro.',
+    salt: '0a1f2b3c4d5e6f70889a1b2c3d4e5f60',
+    passwordHash:
+      '7cb6a3b2e9d1bbfe918c7150dd2664128e148ade2432f329ac4066767b582d78',
+    createdAt: '2026-01-05T10:00:00.000Z',
+  },
+  87654321: {
+    dni: '87654321',
+    name: 'Segundo Jugador',
+    phone: '',
+    email: 'jugador2.test@gmail.com',
+    gender: 'Masculino',
+    username: 'neon_ghost',
+    description: 'Shooter competitivo. Speedrunner los fines de semana.',
+    salt: '9f8e7d6c5b4a39281fa0b1c2d3e4f506',
+    passwordHash:
+      '6bd44a13221fa48b6700805790d40c34e63f7172ad5da09f6e900306612a8240',
+    createdAt: '2026-01-06T18:30:00.000Z',
+  },
+}
+
 const EMPTY_LOGIN_FORM = { identifier: '', password: '' }
 const EMPTY_REGISTER_FORM = {
   name: '',
@@ -41,9 +74,13 @@ const inputState = (hasError) => (hasError ? 'arcade-input-error' : '')
 function loadUsers() {
   try {
     const rawUsers = window.localStorage.getItem(USERS_KEY)
-    return rawUsers ? JSON.parse(rawUsers) : {}
+    if (rawUsers) {
+      return JSON.parse(rawUsers)
+    }
+    saveUsers(MOCK_USERS)
+    return MOCK_USERS
   } catch {
-    return {}
+    return MOCK_USERS
   }
 }
 
@@ -145,9 +182,10 @@ function slugifyUsername(value) {
     .slice(0, 20)
 }
 
-function createUniqueUsername(base, users) {
+function createUniqueUsername(base, users, dni) {
   const slug = slugifyUsername(base)
-  const safeBase = slug.length >= 3 ? slug : `player${slug}`.slice(0, 20)
+  const fallbackBase = dni ? `player${dni}` : 'player'
+  const safeBase = slug.length >= 3 ? slug : fallbackBase.slice(0, 20)
   let candidate = safeBase
   let index = 1
 
@@ -504,14 +542,15 @@ function LoginPage() {
       const salt = createSalt()
       const passwordHash = await hashPassword(registerForm.password, salt)
       const typedUsername = registerForm.username.trim()
-      const username = typedUsername
-        ? typedUsername
-        : createUniqueUsername(
-            slugifyUsername(
-              registerForm.email.split('@')[0] || registerForm.name,
-            ),
-            users,
-          )
+        const username = typedUsername
+          ? typedUsername
+          : createUniqueUsername(
+              slugifyUsername(
+                registerForm.email.split('@')[0] || registerForm.name,
+              ),
+              users,
+              dni,
+            )
 
       const nextUsers = {
         ...users,
@@ -742,6 +781,11 @@ function LoginPage() {
               >
                 Crea tu perfil aquí
               </button>
+            </p>
+
+            <p className="arcade-hint text-center">
+              Cuenta de prueba: DNI 12345678 / jugador.test@gmail.com ·
+              contraseña <strong>Arcade2024</strong>
             </p>
           </form>
         )}
