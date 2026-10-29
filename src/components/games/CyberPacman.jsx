@@ -14,20 +14,23 @@ const ACCENT = '#ff2e88'
 const STEP_MS = 260
 const CHASE_PROBABILITY = 0.45
 const POINTS_PER_DOT = 10
+const LEVEL_BONUS = 50
 const START_LIVES = 3
 
 const MAZE = [
-  '###############',
-  '#P............#',
-  '#.##.#####.##.#',
-  '#.............#',
-  '#.##.#.#.#.##.#',
-  '#....#G.G#....#',
-  '#.##.#.#.#.##.#',
-  '#.............#',
-  '#.##.#####.##.#',
-  '#.............#',
-  '###############',
+  '###################',
+  '#P................#',
+  '#.###.###.###.###.#',
+  '#.................#',
+  '#.###.###.###.###.#',
+  '#......G...G......#',
+  '#.................#',
+  '#......G...G......#',
+  '#.###.###.###.###.#',
+  '#.................#',
+  '#.###.###.###.###.#',
+  '#.................#',
+  '###################',
 ]
 
 const DIRECTIONS = [
@@ -94,6 +97,7 @@ function createFreshState(highScore) {
     direction: { x: 0, y: 0 },
     lives: START_LIVES,
     score: 0,
+    level: 1,
     highScore,
     status: 'running',
   }
@@ -108,7 +112,7 @@ function respawnUnits(state) {
   }
 }
 
-function moveGhost(ghost, player) {
+function moveGhost(ghost, player, chaseProbability) {
   const options = DIRECTIONS.filter(
     (direction) => !isWall(ghost.x + direction.x, ghost.y + direction.y),
   )
@@ -116,7 +120,7 @@ function moveGhost(ghost, player) {
     return ghost
   }
 
-  const chases = Math.random() < CHASE_PROBABILITY
+  const chases = Math.random() < chaseProbability
   let direction = options[Math.floor(Math.random() * options.length)]
 
   if (chases) {
@@ -145,6 +149,10 @@ function advancePacman(state) {
     return state
   }
 
+  const chaseProbability = Math.min(
+    0.85,
+    CHASE_PROBABILITY + (state.level - 1) * 0.05,
+  )
   const direction = state.direction
   let player = state.player
   const dots = { ...state.dots }
@@ -161,7 +169,9 @@ function advancePacman(state) {
   }
 
   const previousGhosts = state.ghosts
-  let ghosts = state.ghosts.map((ghost) => moveGhost(ghost, player))
+  let ghosts = state.ghosts.map((ghost) =>
+    moveGhost(ghost, player, chaseProbability),
+  )
 
   let collided = ghosts.some(
     (ghost) => ghost.x === player.x && ghost.y === player.y,
@@ -195,7 +205,18 @@ function advancePacman(state) {
   }
 
   if (status === 'running' && Object.keys(dots).length === 0) {
-    status = 'win'
+    const nextScore = state.score + LEVEL_BONUS
+    return {
+      dots: { ...DOT_STARTS },
+      player: { ...PLAYER_START },
+      ghosts: GHOST_STARTS.map((ghost) => ({ ...ghost })),
+      direction: { x: 0, y: 0 },
+      lives,
+      score: nextScore,
+      level: state.level + 1,
+      highScore: Math.max(state.highScore, nextScore),
+      status: 'running',
+    }
   }
 
   return {
@@ -207,7 +228,7 @@ function advancePacman(state) {
     lives,
     score,
     highScore:
-      status === 'over' || status === 'win'
+      status === 'over'
         ? Math.max(state.highScore, score)
         : state.highScore,
     status,
@@ -259,9 +280,7 @@ function CyberPacman({ onScore }) {
   const status = game.status
   const highScore = game.highScore
   const beatRecord =
-    (status === 'over' || status === 'win') &&
-    score > 0 &&
-    score >= highScore
+    status === 'over' && score > 0 && score >= highScore
   const lastSavedScoreRef = useRef(highScore)
 
   useEffect(() => {
@@ -327,9 +346,16 @@ function CyberPacman({ onScore }) {
   return (
     <div className="arcade-card flex flex-col gap-4 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="arcade-meta-label flex items-center gap-3">
-          Puntos: <span style={{ color: ACCENT }}>{game.score}</span> · Vidas:{' '}
-          <LivesRow lives={game.lives} />
+        <p className="arcade-meta-label flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>
+            Puntos: <span style={{ color: ACCENT }}>{game.score}</span>
+          </span>
+          <span>
+            Fase: <span style={{ color: '#ffd319' }}>{game.level}</span>
+          </span>
+          <span className="flex items-center gap-2">
+            Vidas: <LivesRow lives={game.lives} />
+          </span>
         </p>
         <p className="arcade-meta-label flex items-center gap-1.5">
           <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Récord:{' '}
@@ -434,15 +460,6 @@ function CyberPacman({ onScore }) {
             {game.status === 'over' && (
               <>
                 <h4 className="arcade-success-title text-sm">GAME OVER</h4>
-                <p className="arcade-meta-label">
-                  Puntos: <span style={{ color: ACCENT }}>{game.score}</span> ·
-                  Récord: <span style={{ color: '#ffd319' }}>{highScore}</span>
-                </p>
-              </>
-            )}
-            {game.status === 'win' && (
-              <>
-                <h4 className="arcade-success-title text-sm">¡CIRCUITO LIBRE!</h4>
                 <p className="arcade-meta-label">
                   Puntos: <span style={{ color: ACCENT }}>{game.score}</span> ·
                   Récord: <span style={{ color: '#ffd319' }}>{highScore}</span>

@@ -558,6 +558,28 @@ body {
   animation: arcade-clear-flash 0.55s ease-out both;
 }
 
+.arcade-line-flash {
+  animation: arcade-line-flash 0.45s ease-out both;
+}
+
+@keyframes arcade-line-flash {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    background: #ffffff;
+    box-shadow:
+      0 0 22px #ffffff,
+      0 0 36px var(--color-arcade-cyan);
+    filter: brightness(2.8);
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scaleY(0.12);
+    opacity: 0.15;
+  }
+}
+
 @keyframes arcade-clear-flash {
   0% {
     filter: brightness(3.2);

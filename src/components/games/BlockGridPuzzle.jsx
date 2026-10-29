@@ -311,6 +311,10 @@ function BlockGridPuzzle({ onScore }) {
     const nextHand = remainingHand.length > 0 ? remainingHand : createHand()
     const nextScore = score + piece.cells.length * CELL_POINTS + cleared * LINE_POINTS
 
+    setSelectedId(null)
+    setCursor(null)
+    setHover(null)
+
     if (nextScore > highScore) {
       setHighScore(nextScore)
       saveHighScore('block-grid-puzzle', nextScore)
@@ -338,9 +342,6 @@ function BlockGridPuzzle({ onScore }) {
   function finishPlacement(nextGrid, nextHand) {
     setGrid(nextGrid)
     setHand(nextHand)
-    setSelectedId(null)
-    setHover(null)
-    setCursor(null)
     if (!hasAnyFittingSlot(nextGrid, nextHand)) {
       setStatus('over')
     }
@@ -369,6 +370,7 @@ function BlockGridPuzzle({ onScore }) {
       >
         <div
           className="grid w-full"
+          onMouseLeave={() => setHover(null)}
           style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)` }}
         >
           {Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, index) => {
@@ -479,7 +481,7 @@ function BlockGridPuzzle({ onScore }) {
           ))}
       </div>
 
-      {selectedPiece && cursor && (
+      {selectedPiece && cursor && !hover && (
         <FloatingPiece piece={selectedPiece} cursor={cursor} />
       )}
 

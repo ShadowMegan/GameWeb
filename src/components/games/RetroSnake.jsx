@@ -12,7 +12,9 @@ const ACCENT = '#00e5ff'
 const GRID_SIZE = 15
 const STEP_MS = 140
 const POINTS_PER_APPLE = 10
+const APPLE_GOAL = 5
 const MAX_PENDING = 3
+const OBSTACLE_MIN_DISTANCE = 5
 
 const UP = { x: 0, y: -1 }
 const DOWN = { x: 0, y: 1 }
@@ -30,17 +32,52 @@ const DIRECTION_BY_KEY = {
   d: RIGHT,
 }
 
-function randomApple(snake) {
-  for (let tries = 0; tries < GRID_SIZE * GRID_SIZE; tries += 1) {
+function createInitialSnake() {
+  return [
+    { x: 7, y: 7 },
+    { x: 6, y: 7 },
+    { x: 5, y: 7 },
+  ]
+}
+
+function randomApple(excluded) {
+  for (let tries = 0; tries < GRID_SIZE * GRID_SIZE * 4; tries += 1) {
     const cell = {
       x: Math.floor(Math.random() * GRID_SIZE),
       y: Math.floor(Math.random() * GRID_SIZE),
     }
-    if (!snake.some((part) => part.x === cell.x && part.y === cell.y)) {
+    if (
+      !excluded.some((part) => part.x === cell.x && part.y === cell.y)
+    ) {
       return cell
     }
   }
   return null
+}
+
+function generateObstacles(snake, level) {
+  const count = Math.min(level + 2, 9)
+  const head = snake[0]
+  const obstacles = []
+
+  for (let guard = 0; guard < count * 40 && obstacles.length < count; guard += 1) {
+    const cell = {
+      x: Math.floor(Math.random() * GRID_SIZE),
+      y: Math.floor(Math.random() * GRID_SIZE),
+    }
+    const sameRowAsSpawn = cell.y === head.y
+    const tooClose =
+      Math.abs(cell.x - head.x) + Math.abs(cell.y - head.y) <
+      OBSTACLE_MIN_DISTANCE
+    const duplicate = obstacles.some(
+      (other) => other.x === cell.x && other.y === cell.y,
+    )
+    if (!sameRowAsSpawn && !tooClose && !duplicate) {
+      obstacles.push(cell)
+    }
+  }
+
+  return obstacles
 }
 
 function stepSnake(current) {
@@ -72,8 +109,11 @@ function stepSnake(current) {
   const bitesTail = current.snake
     .slice(0, -1)
     .some((part) => part.x === target.x && part.y === target.y)
+  const hitsObstacle = current.obstacles.some(
+    (cell) => cell.x === target.x && cell.y === target.y,
+  )
 
-  if (hitsWall || bitesTail) {
+  if (hitsWall || bitesTail || hitsObstacle) {
     return {
       ...current,
       direction,
@@ -98,29 +138,62 @@ function stepSnake(current) {
   }
 
   const grown = [target, ...current.snake]
+  const applesEaten = current.applesEaten + 1
+  const score = current.score + POINTS_PER_APPLE
+
+  if (applesEaten >= APPLE_GOAL) {
+    return {
+      ...current,
+      direction,
+      pending,
+      snake: grown,
+      apple: null,
+      applesEaten,
+      score,
+      status: 'levelup',
+    }
+  }
+
   return {
     ...current,
     direction,
     pending,
     snake: grown,
-    apple: randomApple(grown),
-    score: current.score + POINTS_PER_APPLE,
+    apple: randomApple([...grown, ...current.obstacles]),
+    applesEaten,
+    score,
   }
 }
 
 function createSnakeGame(highScore) {
-  const snake = [
-    { x: 7, y: 7 },
-    { x: 6, y: 7 },
-    { x: 5, y: 7 },
-  ]
+  const snake = createInitialSnake()
   return {
     snake,
     apple: randomApple(snake) ?? { x: 3, y: 3 },
+    obstacles: [],
     direction: RIGHT,
     pending: [],
+    level: 1,
+    applesEaten: 0,
     score: 0,
     highScore,
+    status: 'running',
+  }
+}
+
+function createLevelState(previous) {
+  const snake = createInitialSnake()
+  const obstacles = generateObstacles(snake, previous.level + 1)
+  return {
+    snake,
+    apple: randomApple([...snake, ...obstacles]) ?? { x: 2, y: 2 },
+    obstacles,
+    direction: RIGHT,
+    pending: [],
+    level: previous.level + 1,
+    applesEaten: 0,
+    score: previous.score,
+    highScore: previous.highScore,
     status: 'running',
   }
 }
@@ -142,15 +215,59 @@ function GameOverScreen({ score, highScore, beatRecord }) {
   )
 }
 
+function BoardCell({ x, y, snake, apple, obstacleSet }) {
+  const snakeIndex = snake.findIndex(
+    (part) => part.x === x && part.y === y,
+  )
+  const isHead = snakeIndex === 0
+  const isApple = Boolean(apple) && apple.x === x && apple.y === y
+  const isObstacle = obstacleSet.has(`${x},${y}`)
+
+  return (
+    <div
+      className="relative"
+      style={{
+        border: isObstacle
+          ? '1px solid rgba(255, 46, 136, 0.6)'
+          : '1px solid rgba(138, 43, 226, 0.16)',
+        background: isObstacle
+          ? '#8a2be2'
+          : snakeIndex >= 0
+            ? `${ACCENT}${isHead ? '' : '88'}`
+            : 'rgba(7, 3, 15, 0.6)',
+        boxShadow: isObstacle
+          ? 'inset 0 0 8px #07030f'
+          : snakeIndex >= 0
+            ? `inset 0 0 6px ${ACCENT}${isHead ? 'cc' : '55'}`
+            : undefined,
+      }}
+    >
+      {isApple && (
+        <span
+          className="absolute inset-1"
+          style={{
+            borderRadius: '9999px',
+            background: '#ff2e88',
+            boxShadow: '0 0 10px #ff2e88',
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
 function RetroSnake({ onScore }) {
   const [game, setGame] = useState(() => ({
     ...createSnakeGame(readHighScore('retro-snake')),
     status: 'idle',
   }))
-  const { snake, apple, score, highScore, status } = game
+  const { snake, apple, score, highScore, status, level, applesEaten } = game
   const beatRecord = status === 'over' && score > 0 && score >= highScore
   const lastSavedScoreRef = useRef(highScore)
   const gameRef = useRef(game)
+  const obstacleSet = new Set(
+    game.obstacles.map((cell) => `${cell.x},${cell.y}`),
+  )
 
   useEffect(() => {
     gameRef.current = game
@@ -177,6 +294,16 @@ function RetroSnake({ onScore }) {
       setGame(stepSnake)
     }, STEP_MS)
     return () => window.clearInterval(timer)
+  }, [status])
+
+  useEffect(() => {
+    if (status !== 'levelup') {
+      return undefined
+    }
+    const timer = window.setTimeout(() => {
+      setGame(createLevelState)
+    }, 1300)
+    return () => window.clearTimeout(timer)
   }, [status])
 
   function queueDirection(next) {
@@ -211,10 +338,10 @@ function RetroSnake({ onScore }) {
         }
         return
       }
-      if (
+      const canStart =
         (event.key === 'Enter' || event.key === ' ') &&
-        current.status !== 'running'
-      ) {
+        (current.status === 'idle' || current.status === 'over')
+      if (canStart) {
         event.preventDefault()
         startGame()
       }
@@ -227,8 +354,19 @@ function RetroSnake({ onScore }) {
   return (
     <div className="arcade-card flex flex-col gap-4 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="arcade-meta-label">
-          Puntos: <span style={{ color: ACCENT }}>{score}</span>
+        <p className="arcade-meta-label flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>
+            Puntos: <span style={{ color: ACCENT }}>{score}</span>
+          </span>
+          <span>
+            Fase: <span style={{ color: '#ffd319' }}>{level}</span>
+          </span>
+          <span>
+            Manzanas:{' '}
+            <span style={{ color: ACCENT }}>
+              {applesEaten}/{APPLE_GOAL}
+            </span>
+          </span>
         </p>
         <p className="arcade-meta-label flex items-center gap-1.5">
           <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Récord:{' '}
@@ -247,44 +385,16 @@ function RetroSnake({ onScore }) {
           className="grid h-full w-full"
           style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)` }}
         >
-          {Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, index) => {
-            const x = index % GRID_SIZE
-            const y = Math.floor(index / GRID_SIZE)
-            const snakeIndex = snake.findIndex(
-              (part) => part.x === x && part.y === y,
-            )
-            const isHead = snakeIndex === 0
-            const isApple = Boolean(apple) && apple.x === x && apple.y === y
-
-            return (
-              <div
-                key={`${x}-${y}`}
-                className="relative"
-                style={{
-                  border: '1px solid rgba(138, 43, 226, 0.16)',
-                  background:
-                    snakeIndex >= 0
-                      ? `${ACCENT}${isHead ? '' : '88'}`
-                      : 'rgba(7, 3, 15, 0.6)',
-                  boxShadow:
-                    snakeIndex >= 0
-                      ? `inset 0 0 6px ${ACCENT}${isHead ? 'cc' : '55'}`
-                      : undefined,
-                }}
-              >
-                {isApple && (
-                  <span
-                    className="absolute inset-1"
-                    style={{
-                      borderRadius: '9999px',
-                      background: '#ff2e88',
-                      boxShadow: '0 0 10px #ff2e88',
-                    }}
-                  />
-                )}
-              </div>
-            )
-          })}
+          {Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, index) => (
+            <BoardCell
+              key={index}
+              x={index % GRID_SIZE}
+              y={Math.floor(index / GRID_SIZE)}
+              snake={snake}
+              apple={apple}
+              obstacleSet={obstacleSet}
+            />
+          ))}
         </div>
 
         {status !== 'running' && (
@@ -292,7 +402,19 @@ function RetroSnake({ onScore }) {
             {status === 'idle' && (
               <>
                 <p className="arcade-subtitle">RETRO SNAKE</p>
-                <p className="arcade-hint">W A S D o FLECHAS para moverte</p>
+                <p className="arcade-hint">
+                  W A S D o FLECHAS · come {APPLE_GOAL} manzanas por fase
+                </p>
+              </>
+            )}
+            {status === 'levelup' && (
+              <>
+                <h4 className="arcade-success-title text-sm">
+                  FASE {level} SUPERADA
+                </h4>
+                <p className="arcade-hint">
+                  Generando obstáculos para la fase {level + 1}...
+                </p>
               </>
             )}
             {status === 'over' && (
@@ -302,16 +424,18 @@ function RetroSnake({ onScore }) {
                 beatRecord={beatRecord}
               />
             )}
-            <button
-              type="button"
-              onClick={(event) => {
-                event.currentTarget.blur()
-                startGame()
-              }}
-              className="arcade-btn arcade-btn-primary arcade-btn-sm"
-            >
-              {status === 'idle' ? 'INICIAR' : 'JUGAR OTRA VEZ'}
-            </button>
+            {(status === 'idle' || status === 'over') && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.currentTarget.blur()
+                  startGame()
+                }}
+                className="arcade-btn arcade-btn-primary arcade-btn-sm"
+              >
+                {status === 'idle' ? 'INICIAR' : 'JUGAR OTRA VEZ'}
+              </button>
+            )}
           </div>
         )}
       </div>

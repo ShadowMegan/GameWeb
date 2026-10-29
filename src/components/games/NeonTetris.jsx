@@ -101,8 +101,32 @@ function spawnState(highScore) {
     next: randomPiece(),
     lines: 0,
     score: 0,
+    flashRows: [],
     highScore,
     status: 'running',
+  }
+}
+
+function finalizeLock(current, merged) {
+  const { board: cleaned, cleared } = clearLines(merged)
+  const spawn = current.next
+  const lockedOut = !fits(cleaned, spawn.shape, spawn.row, spawn.col)
+
+  const lines = current.lines + cleared
+  const score =
+    current.score +
+    LINE_POINTS[Math.min(cleared, LINE_POINTS.length - 1)]
+
+  return {
+    ...current,
+    board: cleaned,
+    piece: lockedOut ? current.piece : spawn,
+    next: lockedOut ? current.next : randomPiece(),
+    lines,
+    score,
+    flashRows: [],
+    highScore: Math.max(current.highScore, score),
+    status: lockedOut ? 'over' : 'running',
   }
 }
 
@@ -128,25 +152,30 @@ function applyTetrisStep(current) {
     })
   })
 
-  const { board: cleaned, cleared } = clearLines(merged)
-  const spawn = current.next
-  const lockedOut = !fits(cleaned, spawn.shape, spawn.row, spawn.col)
+  const fullRows = []
+  merged.forEach((row, y) => {
+    if (row.every(Boolean)) {
+      fullRows.push(y)
+    }
+  })
 
-  const lines = current.lines + cleared
-  const score =
-    current.score +
-    LINE_POINTS[Math.min(cleared, LINE_POINTS.length - 1)]
+  if (fullRows.length === 0) {
+    return finalizeLock(current, merged)
+  }
 
   return {
     ...current,
-    board: cleaned,
-    piece: lockedOut ? piece : spawn,
-    next: lockedOut ? current.next : randomPiece(),
-    lines,
-    score,
-    highScore: Math.max(current.highScore, score),
-    status: lockedOut ? 'over' : 'running',
+    board: merged,
+    flashRows: fullRows,
+    status: 'clearing',
   }
+}
+
+function finalizeClear(current) {
+  if (current.status !== 'clearing') {
+    return current
+  }
+  return finalizeLock({ ...current, status: 'running' }, current.board)
 }
 
 function applyMove(current, colDelta) {
@@ -264,6 +293,16 @@ function NeonTetris({ onScore }) {
   }, [highScore])
 
   useEffect(() => {
+    if (status !== 'clearing') {
+      return undefined
+    }
+    const timer = window.setTimeout(() => {
+      setGame(finalizeClear)
+    }, 260)
+    return () => window.clearTimeout(timer)
+  }, [status])
+
+  useEffect(() => {
     if (status !== 'running') {
       return undefined
     }
@@ -320,7 +359,7 @@ function NeonTetris({ onScore }) {
   }, [])
 
   function buildDisplayBoard(state) {
-    if (state.status === 'over' || state.status === 'idle') {
+    if (state.status !== 'running') {
       return state.board
     }
     const display = state.board.map((row) => [...row])
@@ -362,21 +401,27 @@ function NeonTetris({ onScore }) {
           >
             {buildDisplayBoard(game)
               .flat()
-              .map((cell, index) => (
-                <div
-                  key={index}
-                  style={{
-                    border: '1px solid rgba(138, 43, 226, 0.28)',
-                    background: cell ? COLORS[cell] : 'rgba(7, 3, 15, 0.72)',
-                    boxShadow: cell
-                      ? `inset 0 0 6px ${COLORS[cell]}aa`
-                      : undefined,
-                  }}
-                />
-              ))}
+              .map((cell, index) => {
+                const row = Math.floor(index / COLS)
+                const isFlashing =
+                  status === 'clearing' && game.flashRows.includes(row)
+                return (
+                  <div
+                    key={index}
+                    className={isFlashing ? 'arcade-line-flash' : ''}
+                    style={{
+                      border: '1px solid rgba(138, 43, 226, 0.28)',
+                      background: cell ? COLORS[cell] : 'rgba(7, 3, 15, 0.72)',
+                      boxShadow: cell
+                        ? `inset 0 0 6px ${COLORS[cell]}aa`
+                        : undefined,
+                    }}
+                  />
+                )
+              })}
           </div>
 
-          {status !== 'running' && (
+          {(status === 'idle' || status === 'over') && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[#07030fe6] p-4 text-center">
               {status === 'idle' && (
                 <p className="arcade-subtitle">NEON TETRIS</p>
