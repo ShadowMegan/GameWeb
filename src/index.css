@@ -1015,6 +1015,76 @@ body {
   outline-offset: 2px;
 }
 
+/* Tabla del panel de administrador */
+.arcade-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-pixel-body);
+  font-size: 1.05rem;
+  color: #e6d9ff;
+}
+
+.arcade-table th,
+.arcade-table td {
+  border: 1px solid rgba(138, 43, 226, 0.45);
+  padding: 0.55rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.arcade-table th {
+  font-family: var(--font-pixel);
+  font-size: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #b9eaff;
+  background: rgba(18, 0, 43, 0.85);
+}
+
+.arcade-table-cell {
+  color: #e6d9ff;
+}
+
+.arcade-table-status {
+  display: inline-block;
+  padding: 0.2rem 0.45rem;
+  font-family: var(--font-pixel);
+  font-size: 0.44rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid;
+}
+
+.arcade-table-status-online {
+  border-color: #00ff41;
+  color: #b9f7ff;
+  text-shadow: 0 0 6px rgba(0, 255, 65, 0.6);
+}
+
+.arcade-table-status-offline {
+  border-color: #554177;
+  color: #9d86c9;
+}
+
+.arcade-table-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #ffd319;
+}
+
+.arcade-table-game-tag {
+  display: inline-block;
+  margin: 0.15rem 0.2rem 0.15rem 0;
+  padding: 0.15rem 0.4rem;
+  font-family: var(--font-pixel);
+  font-size: 0.42rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(0, 229, 255, 0.5);
+  color: #b9f7ff;
+}
+
 /* Estrellas de puntuación */
 .star-btn {
   color: #554177;
