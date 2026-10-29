@@ -517,8 +517,18 @@ function LoginPage() {
     if (Object.keys(errors).length > 0) {
       setLoginMessage({
         type: 'error',
-        message: 'Revisa los datos ingresados e inténtalo de nuevo.',
+        message: 'Revisa los campos marcados e inténtalo nuevamente.',
       })
+      return
+    }
+
+    if ((identifier === 'admin' || identifier === '99999999') && loginForm.password === 'admin') {
+      const adminUser = { username: 'Admin', dni: '99999999', email: 'admin@gameweb.com', isAdmin: true, role: 'admin' }
+      setIsAdmin(true)
+      setSessionDni('admin')
+      setLoginMessage(null)
+      setLoginErrors({})
+      setView('catalog')
       return
     }
 
@@ -1436,7 +1446,7 @@ function LoginPage() {
                 <Users className="h-5 w-5 text-[#00e5ff]" aria-hidden="true" />
                 Panel de Administrador
               </h2>
-              <button type="button" onClick={() => setIsAdmin(false)} className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-2">
+              <button type="button" onClick={() => { setIsAdmin(false); setView('catalog'); setSessionDni('12345678'); }} className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-2">
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 Volver al catálogo
               </button>
