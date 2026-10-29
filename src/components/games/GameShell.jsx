@@ -13,26 +13,28 @@ function GameShell({
 
   return (
     <div className="animate-fade-slide flex flex-col gap-4">
-      <div className="arcade-card flex flex-wrap items-center gap-3 p-4">
-        <button
-          type="button"
-          onClick={onExit}
-          className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Volver al catálogo
-        </button>
-        <div className="min-w-0">
-          <p className="arcade-profile-name truncate">{game.name}</p>
-          <span
-            className="border-2 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest"
-            style={{ borderColor: `${game.accent}55`, color: game.accent }}
+      <div className="arcade-card flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={onExit}
+            className="arcade-btn arcade-btn-secondary arcade-btn-sm"
           >
-            {game.category}
-          </span>
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Volver al catálogo
+          </button>
+          <div className="min-w-0">
+            <p className="arcade-profile-name truncate">{game.name}</p>
+            <span
+              className="arcade-chip mt-1"
+              style={{ borderColor: `${game.accent}55`, color: game.accent }}
+            >
+              {game.category}
+            </span>
+          </div>
         </div>
-        <div className="ml-auto flex flex-wrap items-center gap-3">
-          <div className="text-right">
-            <p className="arcade-meta-label flex items-center justify-end gap-1.5">
+        <div className="flex w-full flex-wrap items-center gap-3 sm:ml-auto sm:w-auto">
+          <div className="text-left sm:text-right">
+            <p className="arcade-meta-label flex items-center justify-start gap-1.5 sm:justify-end">
               <Trophy
                 className="h-3.5 w-3.5 text-[#ffd319]"
                 aria-hidden="true"
@@ -58,7 +60,7 @@ function GameShell({
               <p className="arcade-hint text-[#ffd319]">Partida en curso</p>
             )}
           </div>
-          <p className="arcade-coin">INSERT COIN</p>
+          <p className="arcade-coin arcade-coin-inline">INSERT COIN</p>
         </div>
       </div>
       {children}

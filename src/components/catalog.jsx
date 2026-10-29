@@ -26,8 +26,7 @@ import GameShell from './games/GameShell.jsx'
 import GameStage from './games/GameStage.jsx'
 
 const searchInputClass = 'arcade-input w-full pl-12 pr-4 py-3'
-const chipBase =
-  'border-2 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest'
+const chipBase = 'arcade-chip'
 const sortSelectClass =
   'arcade-input px-3 py-1.5 font-mono text-xs uppercase tracking-widest'
 
@@ -86,22 +85,19 @@ function GameCard({ game, highScore, onPlay }) {
 
   return (
     <li
-      className="arcade-card flex flex-col p-4"
-      style={{
-        borderColor: `${game.accent}55`,
-        boxShadow: `0 0 16px ${game.accent}33, inset 0 0 24px rgba(18, 0, 43, 0.6)`,
-      }}
+      className="arcade-card arcade-game-card flex h-full flex-col p-4"
+      style={{ '--game-accent': game.accent }}
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <span
-          className="inline-flex h-10 w-10 items-center justify-center"
+          className="inline-flex h-12 w-12 shrink-0 items-center justify-center"
           style={{
             border: `2px solid ${game.accent}`,
             background: `${game.accent}1f`,
-            boxShadow: `0 0 10px ${game.accent}66`,
+            boxShadow: `0 0 12px ${game.accent}66`,
           }}
         >
-          <Icon className="h-5 w-5" style={{ color: game.accent }} aria-hidden="true" />
+          <Icon className="h-6 w-6" style={{ color: game.accent }} aria-hidden="true" />
         </span>
         <span
           className={chipBase}
@@ -111,38 +107,35 @@ function GameCard({ game, highScore, onPlay }) {
         </span>
       </div>
 
-      <h3
-        className="mb-1 text-lg leading-snug text-white"
-        style={{ textShadow: `0 0 8px ${game.accent}` }}
-      >
-        {game.name}
-      </h3>
+      <h3 className="arcade-game-title mb-2">{game.name}</h3>
 
       <p className="mb-3 text-sm leading-relaxed text-[#d9c8ff]">
         {game.description}
       </p>
 
       <p className="arcade-meta-label mb-1">Cómo se juega</p>
-      <p className="text-sm leading-relaxed text-[#b9f7ff]">{game.howTo}</p>
+      <p className="mb-4 text-sm leading-relaxed text-[#b9f7ff]">{game.howTo}</p>
 
-      <p className="arcade-meta-label mt-3 flex items-center gap-1.5">
-        <Trophy
-          className="h-3.5 w-3.5 text-[#ffd319]"
-          aria-hidden="true"
-        />{' '}
-        Puntaje máximo:{' '}
-        <span className="text-[#ffd319]">{highScore}</span>
-      </p>
+      <div className="mt-auto flex flex-col gap-3 border-t border-[#8a2be255] pt-3">
+        <p className="arcade-meta-label flex items-center gap-1.5">
+          <Trophy
+            className="h-3.5 w-3.5 shrink-0 text-[#ffd319]"
+            aria-hidden="true"
+          />
+          Puntaje máximo:{' '}
+          <span className="text-[#ffd319]">{highScore}</span>
+        </p>
 
-      <button
-        type="button"
-        aria-label={`Jugar ${game.name}`}
-        onClick={onPlay}
-        className="arcade-btn arcade-btn-secondary arcade-btn-sm mt-4 flex items-center justify-center gap-2"
-      >
-        <Gamepad2 className="h-4 w-4" aria-hidden="true" />
-        JUGAR
-      </button>
+        <button
+          type="button"
+          aria-label={`Jugar ${game.name}`}
+          onClick={onPlay}
+          className="arcade-btn arcade-btn-secondary arcade-btn-sm w-full"
+        >
+          <Gamepad2 className="h-4 w-4" aria-hidden="true" />
+          JUGAR
+        </button>
+      </div>
     </li>
   )
 }
@@ -396,7 +389,7 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
             @{user.username} · DNI {user.dni}
           </p>
         </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
           <button
             type="button"
             onClick={() => requestExit('profile')}
@@ -493,7 +486,7 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
                 {option}
               </button>
             ))}
-            <div className="ml-auto flex items-center gap-2">
+            <div className="flex items-center gap-2 sm:ml-auto">
               <label
                 htmlFor="catalog-sort"
                 className="arcade-meta-label flex items-center gap-1.5"

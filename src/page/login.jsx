@@ -1107,7 +1107,7 @@ function LoginPage() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="arcade-btn arcade-btn-secondary arcade-btn-sm ml-auto"
+                  className="arcade-btn arcade-btn-secondary arcade-btn-sm sm:ml-auto"
                 >
                   Cerrar sesión
                 </button>

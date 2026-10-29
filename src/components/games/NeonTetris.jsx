@@ -88,10 +88,18 @@ function fits(board, shape, row, col) {
 }
 
 function clearLines(board) {
-  const next = board.filter((row) => row.some((cell) => !cell))
-  const cleared = ROWS - next.length
-  const padded = Array.from({ length: cleared }, () => Array(COLS).fill(null))
-  return { board: [...padded, ...next], cleared }
+  const cleaned = Array.from({ length: ROWS }, () => Array(COLS).fill(null))
+  let writeRow = ROWS - 1
+
+  for (let readRow = ROWS - 1; readRow >= 0; readRow -= 1) {
+    const row = board[readRow]
+    if (row.some((cell) => !cell)) {
+      cleaned[writeRow] = [...row]
+      writeRow -= 1
+    }
+  }
+
+  return { board: cleaned, cleared: writeRow + 1 }
 }
 
 function spawnState(highScore) {
@@ -394,24 +402,32 @@ function NeonTetris({ onScore, onStateChange }) {
           >
             {buildDisplayBoard(game)
               .flat()
-              .map((cell, index) => {
-                const row = Math.floor(index / COLS)
-                const isFlashing = game.flashRows.includes(row)
-                return (
-                  <div
-                    key={index}
-                    className={isFlashing ? 'arcade-line-flash' : ''}
-                    style={{
-                      border: '1px solid rgba(138, 43, 226, 0.28)',
-                      background: cell ? COLORS[cell] : 'rgba(7, 3, 15, 0.72)',
-                      boxShadow: cell
-                        ? `inset 0 0 6px ${COLORS[cell]}aa`
-                        : undefined,
-                    }}
-                  />
-                )
-              })}
+              .map((cell, index) => (
+                <div
+                  key={index}
+                  style={{
+                    border: '1px solid rgba(138, 43, 226, 0.28)',
+                    background: cell ? COLORS[cell] : 'rgba(7, 3, 15, 0.72)',
+                    boxShadow: cell
+                      ? `inset 0 0 6px ${COLORS[cell]}aa`
+                      : undefined,
+                  }}
+                />
+              ))}
           </div>
+
+          {game.flashRows.map((row) => (
+            <span
+              key={`flash-${row}`}
+              className="arcade-line-flash pointer-events-none absolute left-0 right-0 z-[1]"
+              style={{
+                top: `${(row * 100) / ROWS}%`,
+                height: `${100 / ROWS}%`,
+                background: `${ACCENT}55`,
+              }}
+              aria-hidden="true"
+            />
+          ))}
 
           {(status === 'idle' || status === 'over') && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[#07030fe6] p-4 text-center">
