@@ -1,7 +1,12 @@
+import ThemeProvider from './context/ThemeProvider.jsx'
 import LoginPage from './page/login.jsx'
 
 function App() {
-  return <LoginPage />
+  return (
+    <ThemeProvider>
+      <LoginPage />
+    </ThemeProvider>
+  )
 }
 
 export default App

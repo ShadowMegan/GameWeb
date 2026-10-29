@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Check, CircleAlert, Eye, EyeOff, Gamepad2 } from 'lucide-react'
 import GameCatalog from '../components/catalog.jsx'
+import ThemeSelector from '../components/ThemeSelector.jsx'
+import CommunityComments from '../components/CommunityComments.jsx'
+import { useTheme } from '../context/theme.js'
 
 const USERS_KEY = 'gameweb_users'
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
@@ -374,6 +377,7 @@ function LoginPage() {
   const [users, setUsers] = useState(() => loadUsers())
   const [view, setView] = useState('login')
   const [sessionDni, setSessionDni] = useState('')
+  const { themeId } = useTheme()
 
   const [loginForm, setLoginForm] = useState(EMPTY_LOGIN_FORM)
   const [loginErrors, setLoginErrors] = useState({})
@@ -688,7 +692,9 @@ function LoginPage() {
           : 'max-w-md'
 
   return (
-    <main className="arcade-world relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
+    <main
+      className={`arcade-world theme-${themeId} relative flex min-h-screen flex-col items-center overflow-hidden px-4 py-10`}
+    >
       <div className="arcade-sun" aria-hidden="true" />
       <div className="arcade-glow arcade-glow-pink" aria-hidden="true" />
       <div className="arcade-glow arcade-glow-cyan" aria-hidden="true" />
@@ -701,7 +707,8 @@ function LoginPage() {
           <div className="arcade-logo mx-auto mb-4" aria-hidden="true">
             <Gamepad2 className="h-9 w-9" />
           </div>
-          <h1 className="arcade-title">{heading.title}</h1>
+          <ThemeSelector />
+          <h1 className="arcade-title mt-3">{heading.title}</h1>
           <p className="arcade-subtitle">{heading.subtitle}</p>
           {view !== 'profile' && <p className="arcade-coin">INSERT COIN</p>}
         </header>
@@ -1272,6 +1279,12 @@ function LoginPage() {
           </div>
         )}
       </section>
+
+      {(view === 'login' || view === 'register') && (
+        <div className="w-full max-w-5xl">
+          <CommunityComments sessionUser={sessionUser} />
+        </div>
+      )}
     </main>
   )
 }

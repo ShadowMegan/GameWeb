@@ -752,3 +752,291 @@ body {
     height: 240px;
   }
 }
+
+/* ============ Sistema de temas intercambiables ============ */
+/* Cada tema redefine el fondo, el panel, el título, el botón y el logo.
+   El tema por defecto (Cyberpunk) es el estilo base ya existente. */
+
+/* Synthwave: magenta / rosa eléctrico / púrpura */
+.theme-synthwave .arcade-world {
+  background:
+    radial-gradient(circle at 50% 115%, rgba(255, 0, 255, 0.45), transparent 55%),
+    radial-gradient(circle at 12% 12%, rgba(123, 45, 255, 0.22), transparent 38%),
+    radial-gradient(circle at 88% 24%, rgba(255, 110, 199, 0.2), transparent 38%),
+    linear-gradient(180deg, #0a0018 0%, #1a0033 50%, #05010d 100%);
+}
+
+.theme-synthwave .arcade-panel {
+  border-color: #ff6ec7;
+  outline-color: rgba(123, 45, 255, 0.6);
+  box-shadow:
+    0 0 18px rgba(255, 0, 255, 0.55),
+    0 0 48px rgba(123, 45, 255, 0.3),
+    inset 0 0 50px rgba(123, 45, 255, 0.25);
+}
+
+.theme-synthwave .arcade-title {
+  text-shadow:
+    0 0 4px #ffffff,
+    0 0 10px #ff00ff,
+    0 0 24px rgba(255, 0, 255, 0.85),
+    0 0 42px rgba(255, 110, 199, 0.5),
+    3px 3px 0 #7b2dff;
+}
+
+.theme-synthwave .arcade-btn {
+  border-color: #ff00ff;
+  box-shadow:
+    0 0 14px rgba(255, 0, 255, 0.55),
+    inset 0 0 14px rgba(255, 255, 255, 0.18);
+}
+
+.theme-synthwave .arcade-btn:hover:not(:disabled) {
+  box-shadow:
+    0 0 22px rgba(255, 0, 255, 0.8),
+    inset 0 0 18px rgba(255, 255, 255, 0.25);
+}
+
+.theme-synthwave .arcade-logo {
+  border-color: #ff00ff;
+  color: #ff6ec7;
+  box-shadow:
+    0 0 12px rgba(255, 0, 255, 0.7),
+    inset 0 0 16px rgba(255, 110, 199, 0.35);
+}
+
+.theme-synthwave .arcade-sun {
+  background: linear-gradient(180deg, #ff6ec7 0%, #ff00ff 55%, #7b2dff 100%);
+  box-shadow: 0 0 90px rgba(255, 0, 255, 0.55);
+}
+
+.theme-synthwave .arcade-glow-pink {
+  background: #ff00ff;
+}
+
+.theme-synthwave .arcade-glow-cyan {
+  background: #ff6ec7;
+}
+
+/* Matrix: verde neón / negro */
+.theme-matrix .arcade-world {
+  background:
+    radial-gradient(circle at 50% 115%, rgba(0, 255, 65, 0.25), transparent 55%),
+    radial-gradient(circle at 15% 10%, rgba(0, 85, 0, 0.25), transparent 38%),
+    radial-gradient(circle at 85% 20%, rgba(0, 255, 65, 0.12), transparent 38%),
+    linear-gradient(180deg, #020a02 0%, #051a05 50%, #010601 100%);
+}
+
+.theme-matrix .arcade-panel {
+  border-color: #00ff41;
+  outline-color: rgba(0, 85, 0, 0.7);
+  box-shadow:
+    0 0 18px rgba(0, 255, 65, 0.45),
+    0 0 48px rgba(0, 255, 65, 0.2),
+    inset 0 0 50px rgba(0, 85, 0, 0.3);
+}
+
+.theme-matrix .arcade-title {
+  text-shadow:
+    0 0 4px #ffffff,
+    0 0 10px #00ff41,
+    0 0 24px rgba(0, 255, 65, 0.85),
+    0 0 42px rgba(0, 255, 65, 0.4),
+    3px 3px 0 #005500;
+}
+
+.theme-matrix .arcade-btn {
+  border-color: #00ff41;
+  box-shadow:
+    0 0 14px rgba(0, 255, 65, 0.5),
+    inset 0 0 14px rgba(255, 255, 255, 0.12);
+}
+
+.theme-matrix .arcade-btn:hover:not(:disabled) {
+  box-shadow:
+    0 0 22px rgba(0, 255, 65, 0.8),
+    inset 0 0 18px rgba(255, 255, 255, 0.2);
+}
+
+.theme-matrix .arcade-logo {
+  border-color: #00ff41;
+  color: #00ff41;
+  box-shadow:
+    0 0 12px rgba(0, 255, 65, 0.7),
+    inset 0 0 16px rgba(0, 85, 0, 0.4);
+}
+
+.theme-matrix .arcade-sun {
+  background: linear-gradient(180deg, #00ff41 0%, #0f0 55%, #005500 100%);
+  box-shadow: 0 0 90px rgba(0, 255, 65, 0.45);
+}
+
+.theme-matrix .arcade-glow-pink {
+  background: #00ff41;
+}
+
+.theme-matrix .arcade-glow-cyan {
+  background: #0f0;
+}
+
+.theme-matrix .arcade-world::before {
+  background-image:
+    linear-gradient(rgba(0, 255, 65, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 65, 0.08) 1px, transparent 1px);
+}
+
+/* Arcade Dark: ambar / naranja / rojo, estilo clásico de recreativa */
+.theme-arcade-dark .arcade-world {
+  background:
+    radial-gradient(circle at 50% 115%, rgba(255, 176, 0, 0.3), transparent 55%),
+    radial-gradient(circle at 12% 12%, rgba(255, 69, 0, 0.16), transparent 38%),
+    radial-gradient(circle at 88% 24%, rgba(255, 215, 0, 0.12), transparent 38%),
+    linear-gradient(180deg, #0a0600 0%, #1a0e00 50%, #060300 100%);
+}
+
+.theme-arcade-dark .arcade-panel {
+  border-color: #ffb000;
+  outline-color: rgba(255, 69, 0, 0.6);
+  box-shadow:
+    0 0 18px rgba(255, 176, 0, 0.5),
+    0 0 48px rgba(255, 69, 0, 0.22),
+    inset 0 0 50px rgba(255, 69, 0, 0.15);
+}
+
+.theme-arcade-dark .arcade-title {
+  text-shadow:
+    0 0 4px #ffffff,
+    0 0 10px #ffb000,
+    0 0 24px rgba(255, 176, 0, 0.85),
+    0 0 42px rgba(255, 69, 0, 0.45),
+    3px 3px 0 #ff4500;
+}
+
+.theme-arcade-dark .arcade-btn {
+  border-color: #ffb000;
+  box-shadow:
+    0 0 14px rgba(255, 176, 0, 0.5),
+    inset 0 0 14px rgba(255, 255, 255, 0.12);
+}
+
+.theme-arcade-dark .arcade-btn:hover:not(:disabled) {
+  box-shadow:
+    0 0 22px rgba(255, 176, 0, 0.8),
+    inset 0 0 18px rgba(255, 255, 255, 0.2);
+}
+
+.theme-arcade-dark .arcade-logo {
+  border-color: #ffb000;
+  color: #ffb000;
+  box-shadow:
+    0 0 12px rgba(255, 176, 0, 0.7),
+    inset 0 0 16px rgba(255, 69, 0, 0.3);
+}
+
+.theme-arcade-dark .arcade-sun {
+  background: linear-gradient(180deg, #ffd700 0%, #ffb000 55%, #ff4500 100%);
+  box-shadow: 0 0 90px rgba(255, 176, 0, 0.5);
+}
+
+.theme-arcade-dark .arcade-glow-pink {
+  background: #ffb000;
+}
+
+.theme-arcade-dark .arcade-glow-cyan {
+  background: #ff4500;
+}
+
+.theme-arcade-dark .arcade-world::before {
+  background-image:
+    linear-gradient(rgba(255, 176, 0, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 69, 0, 0.08) 1px, transparent 1px);
+}
+
+/* Selector de tema (botones de ícono) */
+.theme-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  padding: 0.2rem;
+}
+
+.theme-swatch-ring {
+  display: block;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 2px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--swatch-a),
+    var(--swatch-b),
+    var(--swatch-c),
+    var(--swatch-a)
+  );
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.theme-swatch-ring[data-active] {
+  border-color: #ffffff;
+  box-shadow:
+    0 0 10px var(--swatch-a),
+    0 0 20px var(--swatch-b);
+}
+
+.theme-swatch-inner {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #07030f;
+}
+
+.theme-swatch:hover .theme-swatch-ring {
+  box-shadow: 0 0 8px var(--swatch-a);
+}
+
+.theme-swatch-label {
+  font-family: var(--font-pixel);
+  font-size: 0.45rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #b9eaff;
+  white-space: nowrap;
+}
+
+.theme-swatch:focus-visible .theme-swatch-ring {
+  outline: 2px solid #ffd319;
+  outline-offset: 2px;
+}
+
+/* Estrellas de puntuación */
+.star-btn {
+  color: #554177;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  transition:
+    color 0.12s,
+    transform 0.12s;
+}
+
+.star-btn[data-on] {
+  color: #ffd319;
+  filter: drop-shadow(0 0 6px rgba(255, 211, 25, 0.7));
+}
+
+.star-btn:hover {
+  transform: scale(1.15);
+}
+
+.star-btn:focus-visible {
+  outline: 2px solid #ffd319;
+  outline-offset: 2px;
+}
