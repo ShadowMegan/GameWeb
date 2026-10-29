@@ -12,31 +12,22 @@ const ACCENT = '#00e5ff'
 const GRID_SIZE = 15
 const STEP_MS = 140
 const POINTS_PER_APPLE = 10
+const MAX_PENDING = 3
 
-const DIRECTIONS = [
-  { x: 0, y: -1 },
-  { x: 0, y: 1 },
-  { x: -1, y: 0 },
-  { x: 1, y: 0 },
-]
+const UP = { x: 0, y: -1 }
+const DOWN = { x: 0, y: 1 }
+const LEFT = { x: -1, y: 0 }
+const RIGHT = { x: 1, y: 0 }
 
 const DIRECTION_BY_KEY = {
-  arrowup: DIRECTIONS[0],
-  w: DIRECTIONS[0],
-  arrowdown: DIRECTIONS[1],
-  s: DIRECTIONS[1],
-  arrowleft: DIRECTIONS[2],
-  a: DIRECTIONS[2],
-  arrowright: DIRECTIONS[3],
-  d: DIRECTIONS[3],
-}
-
-function createInitialSnake() {
-  return [
-    { x: 7, y: 7 },
-    { x: 6, y: 7 },
-    { x: 5, y: 7 },
-  ]
+  arrowup: UP,
+  w: UP,
+  arrowdown: DOWN,
+  s: DOWN,
+  arrowleft: LEFT,
+  a: LEFT,
+  arrowright: RIGHT,
+  d: RIGHT,
 }
 
 function randomApple(snake) {
@@ -53,21 +44,40 @@ function randomApple(snake) {
 }
 
 function stepSnake(current) {
+  let direction = current.direction
+  let pending = current.pending
+
+  while (pending.length > 0) {
+    const [next, ...rest] = pending
+    pending = rest
+    const isReverse = next.x === -direction.x && next.y === -direction.y
+    const isSame = next.x === direction.x && next.y === direction.y
+    if (!isReverse && !isSame) {
+      direction = next
+      break
+    }
+  }
+
   const head = current.snake[0]
-  const next = {
-    x: head.x + current.direction.x,
-    y: head.y + current.direction.y,
+  const target = {
+    x: head.x + direction.x,
+    y: head.y + direction.y,
   }
 
   const hitsWall =
-    next.x < 0 || next.y < 0 || next.x >= GRID_SIZE || next.y >= GRID_SIZE
+    target.x < 0 ||
+    target.y < 0 ||
+    target.x >= GRID_SIZE ||
+    target.y >= GRID_SIZE
   const bitesTail = current.snake
     .slice(0, -1)
-    .some((part) => part.x === next.x && part.y === next.y)
+    .some((part) => part.x === target.x && part.y === target.y)
 
   if (hitsWall || bitesTail) {
     return {
       ...current,
+      direction,
+      pending,
       highScore: Math.max(current.highScore, current.score),
       status: 'over',
     }
@@ -75,19 +85,23 @@ function stepSnake(current) {
 
   const eatsApple =
     Boolean(current.apple) &&
-    next.x === current.apple.x &&
-    next.y === current.apple.y
+    target.x === current.apple.x &&
+    target.y === current.apple.y
 
   if (!eatsApple) {
     return {
       ...current,
-      snake: [next, ...current.snake.slice(0, -1)],
+      direction,
+      pending,
+      snake: [target, ...current.snake.slice(0, -1)],
     }
   }
 
-  const grown = [next, ...current.snake]
+  const grown = [target, ...current.snake]
   return {
     ...current,
+    direction,
+    pending,
     snake: grown,
     apple: randomApple(grown),
     score: current.score + POINTS_PER_APPLE,
@@ -95,15 +109,37 @@ function stepSnake(current) {
 }
 
 function createSnakeGame(highScore) {
-  const snake = createInitialSnake()
+  const snake = [
+    { x: 7, y: 7 },
+    { x: 6, y: 7 },
+    { x: 5, y: 7 },
+  ]
   return {
     snake,
     apple: randomApple(snake) ?? { x: 3, y: 3 },
-    direction: { x: 1, y: 0 },
+    direction: RIGHT,
+    pending: [],
     score: 0,
     highScore,
     status: 'running',
   }
+}
+
+function GameOverScreen({ score, highScore, beatRecord }) {
+  return (
+    <>
+      <h4 className="arcade-success-title text-sm">GAME OVER</h4>
+      <p className="arcade-meta-label">
+        Puntos: <span style={{ color: ACCENT }}>{score}</span> · Récord:{' '}
+        <span style={{ color: '#ffd319' }}>{Math.max(highScore, score)}</span>
+      </p>
+      {beatRecord && (
+        <p className="arcade-meta-label" style={{ color: '#ffd319' }}>
+          ¡Nuevo récord guardado!
+        </p>
+      )}
+    </>
+  )
 }
 
 function RetroSnake({ onScore }) {
@@ -111,15 +147,14 @@ function RetroSnake({ onScore }) {
     ...createSnakeGame(readHighScore('retro-snake')),
     status: 'idle',
   }))
-  const snake = game.snake
-  const apple = game.apple
-  const score = game.score
-  const highScore = game.highScore
-  const status = game.status
+  const { snake, apple, score, highScore, status } = game
   const beatRecord = status === 'over' && score > 0 && score >= highScore
   const lastSavedScoreRef = useRef(highScore)
-  const directionRef = useRef({ x: 1, y: 0 })
-  const queuedRef = useRef(null)
+  const gameRef = useRef(game)
+
+  useEffect(() => {
+    gameRef.current = game
+  })
 
   useEffect(() => {
     if (score > 0) {
@@ -139,40 +174,47 @@ function RetroSnake({ onScore }) {
       return undefined
     }
     const timer = window.setInterval(() => {
-      if (queuedRef.current) {
-        setGame((previous) => ({
-          ...previous,
-          direction: queuedRef.current,
-        }))
-        queuedRef.current = null
-      }
       setGame(stepSnake)
     }, STEP_MS)
-
     return () => window.clearInterval(timer)
   }, [status])
 
   function queueDirection(next) {
-    const current = directionRef.current
-    const pending = queuedRef.current ?? current
-    if (pending.x === -next.x && pending.y === -next.y) {
-      return
-    }
-    directionRef.current = next
-    queuedRef.current = next
+    setGame((current) => {
+      if (current.status !== 'running') {
+        return current
+      }
+      const last = current.pending.length
+        ? current.pending[current.pending.length - 1]
+        : current.direction
+      const isReverse = next.x === -last.x && next.y === -last.y
+      const isSame = next.x === last.x && next.y === last.y
+      if (isReverse || isSame || current.pending.length >= MAX_PENDING) {
+        return current
+      }
+      return { ...current, pending: [...current.pending, next] }
+    })
+  }
+
+  function startGame() {
+    setGame(createSnakeGame(gameRef.current.highScore))
   }
 
   useEffect(() => {
     function handleKey(event) {
+      const current = gameRef.current
       const direction = DIRECTION_BY_KEY[event.key.toLowerCase()]
       if (direction) {
         event.preventDefault()
-        if (status === 'running') {
+        if (current.status === 'running') {
           queueDirection(direction)
         }
         return
       }
-      if ((event.key === 'Enter' || event.key === ' ') && status !== 'running') {
+      if (
+        (event.key === 'Enter' || event.key === ' ') &&
+        current.status !== 'running'
+      ) {
         event.preventDefault()
         startGame()
       }
@@ -180,13 +222,7 @@ function RetroSnake({ onScore }) {
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  })
-
-  function startGame() {
-    directionRef.current = { x: 1, y: 0 }
-    queuedRef.current = null
-    setGame(createSnakeGame(highScore))
-  }
+  }, [])
 
   return (
     <div className="arcade-card flex flex-col gap-4 p-4 sm:p-5">
@@ -201,14 +237,14 @@ function RetroSnake({ onScore }) {
       </div>
 
       <div
-        className="relative mx-auto w-full max-w-md"
+        className="relative mx-auto aspect-square w-full max-w-md"
         style={{
           border: `2px solid ${ACCENT}`,
           boxShadow: `0 0 14px ${ACCENT}55, inset 0 0 22px rgba(18, 0, 43, 0.7)`,
         }}
       >
         <div
-          className="grid aspect-square"
+          className="grid h-full w-full"
           style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)` }}
         >
           {Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, index) => {
@@ -264,12 +300,14 @@ function RetroSnake({ onScore }) {
                 score={score}
                 highScore={highScore}
                 beatRecord={beatRecord}
-                onRestart={startGame}
               />
             )}
             <button
               type="button"
-              onClick={startGame}
+              onClick={(event) => {
+                event.currentTarget.blur()
+                startGame()
+              }}
               className="arcade-btn arcade-btn-primary arcade-btn-sm"
             >
               {status === 'idle' ? 'INICIAR' : 'JUGAR OTRA VEZ'}
@@ -284,7 +322,7 @@ function RetroSnake({ onScore }) {
           <button
             type="button"
             aria-label="Mover arriba"
-            onClick={() => queueDirection({ x: 0, y: -1 })}
+            onClick={() => queueDirection(UP)}
             className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
           >
             <ChevronUp className="h-4 w-4" />
@@ -293,7 +331,7 @@ function RetroSnake({ onScore }) {
           <button
             type="button"
             aria-label="Mover izquierda"
-            onClick={() => queueDirection({ x: -1, y: 0 })}
+            onClick={() => queueDirection(LEFT)}
             className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -301,7 +339,7 @@ function RetroSnake({ onScore }) {
           <button
             type="button"
             aria-label="Mover abajo"
-            onClick={() => queueDirection({ x: 0, y: 1 })}
+            onClick={() => queueDirection(DOWN)}
             className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
           >
             <ChevronDown className="h-4 w-4" />
@@ -309,7 +347,7 @@ function RetroSnake({ onScore }) {
           <button
             type="button"
             aria-label="Mover derecha"
-            onClick={() => queueDirection({ x: 1, y: 0 })}
+            onClick={() => queueDirection(RIGHT)}
             className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
           >
             <ChevronRight className="h-4 w-4" />
@@ -317,23 +355,6 @@ function RetroSnake({ onScore }) {
         </div>
       )}
     </div>
-  )
-}
-
-function GameOverScreen({ score, highScore, beatRecord }) {
-  return (
-    <>
-      <h4 className="arcade-success-title text-sm">GAME OVER</h4>
-      <p className="arcade-meta-label">
-        Puntos: <span style={{ color: ACCENT }}>{score}</span> · Récord:{' '}
-        <span style={{ color: '#ffd319' }}>{Math.max(highScore, score)}</span>
-      </p>
-      {beatRecord && (
-        <p className="arcade-meta-label" style={{ color: '#ffd319' }}>
-          ¡Nuevo récord guardado!
-        </p>
-      )}
-    </>
   )
 }
 

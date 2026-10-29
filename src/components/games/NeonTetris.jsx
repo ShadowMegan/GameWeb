@@ -94,6 +94,18 @@ function clearLines(board) {
   return { board: [...padded, ...next], cleared }
 }
 
+function spawnState(highScore) {
+  return {
+    board: emptyBoard(),
+    piece: randomPiece(),
+    next: randomPiece(),
+    lines: 0,
+    score: 0,
+    highScore,
+    status: 'running',
+  }
+}
+
 function applyTetrisStep(current) {
   if (current.status !== 'running') {
     return current
@@ -137,20 +149,51 @@ function applyTetrisStep(current) {
   }
 }
 
-function spawnState(highScore) {
+function applyMove(current, colDelta) {
+  if (current.status !== 'running') {
+    return current
+  }
+  const { board, piece } = current
+  const col = piece.col + colDelta
+  return fits(board, piece.shape, piece.row, col)
+    ? { ...current, piece: { ...piece, col } }
+    : current
+}
+
+function applyRotate(current) {
+  if (current.status !== 'running') {
+    return current
+  }
+  const { board, piece } = current
+  const shape = rotateShape(piece.shape)
+  const spread = [0, -1, 1, -2, 2].find((offset) =>
+    fits(board, shape, piece.row, piece.col + offset),
+  )
+  return spread === undefined
+    ? current
+    : { ...current, piece: { ...piece, shape, col: piece.col + spread } }
+}
+
+function applySoftDrop(current) {
+  if (current.status !== 'running') {
+    return current
+  }
+  const { board, piece } = current
+  if (!fits(board, piece.shape, piece.row + 1, piece.col)) {
+    return current
+  }
   return {
-    board: emptyBoard(),
-    piece: randomPiece(),
-    next: randomPiece(),
-    lines: 0,
-    score: 0,
-    highScore,
-    status: 'running',
+    ...current,
+    piece: { ...piece, row: piece.row + 1 },
+    score: current.score + SOFT_DROP_POINTS,
   }
 }
 
-function hardDropStep(current) {
-  let { piece } = current
+function applyHardDrop(current) {
+  if (current.status !== 'running') {
+    return current
+  }
+  let piece = current.piece
   let distance = 0
   while (fits(current.board, piece.shape, piece.row + 1, piece.col)) {
     piece = { ...piece, row: piece.row + 1 }
@@ -201,21 +244,11 @@ function NeonTetris({ onScore }) {
   const status = game.status
   const beatRecord = status === 'over' && score > 0 && score >= highScore
   const lastSavedScoreRef = useRef(highScore)
+  const gameRef = useRef(game)
 
-  function buildDisplayBoard(state) {
-    if (state.status === 'over' || state.status === 'idle') {
-      return state.board
-    }
-    const display = state.board.map((row) => [...row])
-    state.piece.shape.forEach((shapeRow, y) => {
-      shapeRow.forEach((cell, x) => {
-        if (cell && state.piece.row + y >= 0) {
-          display[state.piece.row + y][state.piece.col + x] = state.piece.kind
-        }
-      })
-    })
-    return display
-  }
+  useEffect(() => {
+    gameRef.current = game
+  })
 
   useEffect(() => {
     if (score > 0) {
@@ -240,92 +273,43 @@ function NeonTetris({ onScore }) {
     return () => window.clearInterval(timer)
   }, [status])
 
-  function move(colDelta) {
-    if (game.status !== 'running') {
-      return
-    }
-    setGame((current) => {
-      const { board, piece } = current
-      const col = piece.col + colDelta
-      return fits(board, piece.shape, piece.row, col)
-        ? { ...current, piece: { ...piece, col } }
-        : current
-    })
-  }
-
-  function rotate() {
-    if (game.status !== 'running') {
-      return
-    }
-    setGame((current) => {
-      const { board, piece } = current
-      const shape = rotateShape(piece.shape)
-      const spread = [0, -1, 1, -2, 2].find(
-        (offset) => fits(board, shape, piece.row, piece.col + offset),
-      )
-      return spread === undefined
-        ? current
-        : { ...current, piece: { ...piece, shape, col: piece.col + spread } }
-    })
-  }
-
-  function softDrop() {
-    if (game.status !== 'running') {
-      return
-    }
-    setGame((current) => {
-      const { board, piece } = current
-      if (!fits(board, piece.shape, piece.row + 1, piece.col)) {
-        return current
-      }
-      return {
-        ...current,
-        piece: { ...piece, row: piece.row + 1 },
-        score: current.score + SOFT_DROP_POINTS,
-      }
-    })
-  }
-
-  function hardDrop() {
-    if (game.status !== 'running') {
-      return
-    }
-    setGame(hardDropStep)
-  }
-
   function startGame() {
-    setGame(spawnState(highScore))
+    setGame(spawnState(gameRef.current.highScore))
   }
 
   useEffect(() => {
     function handleKey(event) {
-      const key = event.key
-      if (key === 'ArrowLeft') {
+      const current = gameRef.current
+      const key = event.key.toLowerCase()
+      if (key === 'arrowleft' || key === 'a') {
         event.preventDefault()
-        move(-1)
+        setGame((current) => applyMove(current, -1))
         return
       }
-      if (key === 'ArrowRight') {
+      if (key === 'arrowright' || key === 'd') {
         event.preventDefault()
-        move(1)
+        setGame((current) => applyMove(current, 1))
         return
       }
-      if (key === 'ArrowDown') {
+      if (key === 'arrowdown' || key === 's') {
         event.preventDefault()
-        softDrop()
+        setGame(applySoftDrop)
         return
       }
-      if (key === 'ArrowUp') {
+      if (key === 'arrowup' || key === 'w') {
         event.preventDefault()
-        rotate()
+        setGame(applyRotate)
         return
       }
-      if (key === ' ' && game.status === 'running') {
+      if (key === ' ' && current.status === 'running') {
         event.preventDefault()
-        hardDrop()
+        setGame(applyHardDrop)
         return
       }
-      if ((key === 'Enter' || key === ' ') && game.status !== 'running') {
+      if (
+        (key === 'enter' || key === ' ') &&
+        current.status !== 'running'
+      ) {
         event.preventDefault()
         startGame()
       }
@@ -333,13 +317,28 @@ function NeonTetris({ onScore }) {
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  })
+  }, [])
+
+  function buildDisplayBoard(state) {
+    if (state.status === 'over' || state.status === 'idle') {
+      return state.board
+    }
+    const display = state.board.map((row) => [...row])
+    state.piece.shape.forEach((shapeRow, y) => {
+      shapeRow.forEach((cell, x) => {
+        if (cell && state.piece.row + y >= 0) {
+          display[state.piece.row + y][state.piece.col + x] = state.piece.kind
+        }
+      })
+    })
+    return display
+  }
 
   return (
     <div className="arcade-card flex flex-col gap-4 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="arcade-meta-label">
-          Puntos: <span style={{ color: ACCENT }}>{game.score}</span> · Líneas:{' '}
+          Puntos: <span style={{ color: ACCENT }}>{score}</span> · Líneas:{' '}
           <span style={{ color: ACCENT }}>{game.lines}</span>
         </p>
         <p className="arcade-meta-label flex items-center gap-1.5">
@@ -348,19 +347,17 @@ function NeonTetris({ onScore }) {
         </p>
       </div>
 
-      <div className="mx-auto flex w-full max-w-md items-stretch gap-3">
+      <div className="mx-auto flex w-full max-w-md items-start justify-center gap-3">
         <div
-          className="relative flex-1"
-          style={{
-            border: `2px solid ${ACCENT}`,
-            boxShadow: `0 0 14px ${ACCENT}44, inset 0 0 22px rgba(18, 0, 43, 0.7)`,
-          }}
+          className="relative"
+          style={{ width: 'min(54vw, 13.5rem)' }}
         >
           <div
-            className="grid"
+            className="grid w-full"
             style={{
               gridTemplateColumns: `repeat(${COLS}, 1fr)`,
-              gridTemplateRows: `repeat(${ROWS}, calc(min(90vw, 24rem) / 50))`,
+              gridTemplateRows: `repeat(${ROWS}, 1fr)`,
+              aspectRatio: '1 / 2',
             }}
           >
             {buildDisplayBoard(game)
@@ -370,27 +367,32 @@ function NeonTetris({ onScore }) {
                   key={index}
                   style={{
                     border: '1px solid rgba(138, 43, 226, 0.28)',
-                    background: cell
-                      ? COLORS[cell]
-                      : `rgba(7, 3, 15, 0.72)`,
-                    boxShadow: cell ? `inset 0 0 6px ${COLORS[cell]}aa` : undefined,
+                    background: cell ? COLORS[cell] : 'rgba(7, 3, 15, 0.72)',
+                    boxShadow: cell
+                      ? `inset 0 0 6px ${COLORS[cell]}aa`
+                      : undefined,
                   }}
                 />
               ))}
           </div>
 
-          {game.status !== 'running' && (
+          {status !== 'running' && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[#07030fe6] p-4 text-center">
-              {game.status === 'idle' && <p className="arcade-subtitle">NEON TETRIS</p>}
-              {game.status === 'over' && (
+              {status === 'idle' && (
+                <p className="arcade-subtitle">NEON TETRIS</p>
+              )}
+              {status === 'over' && (
                 <>
                   <h4 className="arcade-success-title text-sm">GAME OVER</h4>
                   <p className="arcade-meta-label">
-                    Puntos: <span style={{ color: ACCENT }}>{game.score}</span> ·
-                    Récord: <span style={{ color: '#ffd319' }}>{Math.max(highScore, game.score)}</span>
+                    Puntos: <span style={{ color: ACCENT }}>{score}</span> ·
+                    Récord: <span style={{ color: '#ffd319' }}>{highScore}</span>
                   </p>
                   {beatRecord && (
-                    <p className="arcade-meta-label" style={{ color: '#ffd319' }}>
+                    <p
+                      className="arcade-meta-label"
+                      style={{ color: '#ffd319' }}
+                    >
                       ¡Nuevo récord guardado!
                     </p>
                   )}
@@ -398,26 +400,27 @@ function NeonTetris({ onScore }) {
               )}
               <button
                 type="button"
-                onClick={startGame}
+                onClick={(event) => {
+                  event.currentTarget.blur()
+                  startGame()
+                }}
                 className="arcade-btn arcade-btn-primary arcade-btn-sm flex items-center gap-2"
               >
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                {game.status === 'idle' ? 'INICIAR' : 'JUGAR OTRA VEZ'}
+                {status === 'idle' ? 'INICIAR' : 'JUGAR OTRA VEZ'}
               </button>
             </div>
           )}
         </div>
 
-        <div className="flex w-24 shrink-0 flex-col items-center justify-center gap-3">
-          {game.status !== 'over' ? (
-            <NextPiecePreview piece={game.next} />
-          ) : null}
+        <div className="flex shrink-0 flex-col items-center gap-3 pt-2">
+          {status !== 'over' ? <NextPiecePreview piece={game.next} /> : null}
         </div>
       </div>
 
       <p className="arcade-hint text-center">
-        FLECHAS: mover · ARRIBA: rotar · ABAJO: caída suave · ESPACIO: caída
-        total
+        A/D o FLECHAS: mover · W o ARRIBA: rotar · S o ABAJO: caída suave ·
+        ESPACIO: caída total
       </p>
     </div>
   )

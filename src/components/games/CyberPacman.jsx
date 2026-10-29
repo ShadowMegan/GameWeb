@@ -11,22 +11,23 @@ import {
 import { readHighScore, saveHighScore } from '../../lib/scores.js'
 
 const ACCENT = '#ff2e88'
-const STEP_MS = 150
+const STEP_MS = 260
+const CHASE_PROBABILITY = 0.45
 const POINTS_PER_DOT = 10
 const START_LIVES = 3
 
 const MAZE = [
-  '#############',
-  '#P..........#',
-  '#.##.###.##.#',
-  '#...........#',
-  '#.#.##.##.#.#',
-  '#..G.....G..#',
-  '#.#.##.##.#.#',
-  '#...........#',
-  '#.##.###.##.#',
-  '#...........#',
-  '#############',
+  '###############',
+  '#P............#',
+  '#.##.#####.##.#',
+  '#.............#',
+  '#.##.#.#.#.##.#',
+  '#....#G.G#....#',
+  '#.##.#.#.#.##.#',
+  '#.............#',
+  '#.##.#####.##.#',
+  '#.............#',
+  '###############',
 ]
 
 const DIRECTIONS = [
@@ -115,25 +116,28 @@ function moveGhost(ghost, player) {
     return ghost
   }
 
-  const chases = Math.random() < 0.65
-  let pick = options[Math.floor(Math.random() * options.length)]
+  const chases = Math.random() < CHASE_PROBABILITY
+  let direction = options[Math.floor(Math.random() * options.length)]
 
   if (chases) {
-    let best = null
+    let bestDirection = options[0]
     let bestDistance = Infinity
-    options.forEach((direction) => {
-      const candidate = { x: ghost.x + direction.x, y: ghost.y + direction.y }
+    options.forEach((candidate) => {
       const distance =
-        Math.abs(candidate.x - player.x) + Math.abs(candidate.y - player.y)
+        Math.abs(ghost.x + candidate.x - player.x) +
+        Math.abs(ghost.y + candidate.y - player.y)
       if (distance < bestDistance) {
-        best = candidate
+        bestDirection = candidate
         bestDistance = distance
       }
     })
-    pick = best
+    direction = bestDirection
   }
 
-  return pick
+  return {
+    x: ghost.x + direction.x,
+    y: ghost.y + direction.y,
+  }
 }
 
 function advancePacman(state) {
@@ -208,6 +212,25 @@ function advancePacman(state) {
         : state.highScore,
     status,
   }
+}
+
+function EntityLayer({ cell, cols, rows, slotX, visible, children }) {
+  return (
+    <div
+      className="absolute flex items-center justify-center"
+      style={{
+        left: `${((cell.x + 0.5) * 100) / cols}%`,
+        top: `${((cell.y + 0.5) * 100) / rows}%`,
+        width: `${100 / cols}%`,
+        height: `${100 / rows}%`,
+        transform: `translate(calc(-50% + ${slotX * 22}%), -50%)`,
+        transition: 'left 0.22s linear, top 0.22s linear',
+        opacity: visible ? 1 : 0,
+      }}
+    >
+      {children}
+    </div>
+  )
 }
 
 function LivesRow({ lives }) {
@@ -292,6 +315,15 @@ function CyberPacman({ onScore }) {
     return () => window.removeEventListener('keydown', handleKey)
   })
 
+  const ghostSlots = []
+  const ghostCellCount = {}
+  game.ghosts.forEach((ghost, index) => {
+    const key = keyFor(ghost)
+    const slot = ghostCellCount[key] ?? 0
+    ghostCellCount[key] = slot + 1
+    ghostSlots[index] = slot
+  })
+
   return (
     <div className="arcade-card flex flex-col gap-4 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -320,11 +352,6 @@ function CyberPacman({ onScore }) {
             row.split('').map((symbol, x) => {
               const hasDot =
                 game.status !== 'over' && game.dots[keyFor({ x, y })]
-              const isPlayer =
-                game.player.x === x && game.player.y === y
-              const ghostIndex = game.ghosts.findIndex(
-                (ghost) => ghost.x === x && ghost.y === y,
-              )
 
               return (
                 <div
@@ -352,30 +379,48 @@ function CyberPacman({ onScore }) {
                       }}
                     />
                   )}
-                  {isPlayer && (
-                    <span
-                      className="absolute h-3 w-3"
-                      style={{
-                        borderRadius: '9999px',
-                        background: '#ffd319',
-                        boxShadow: '0 0 10px #ffd319',
-                      }}
-                    />
-                  )}
-                  {ghostIndex >= 0 && (
-                    <Ghost
-                      className="absolute h-4 w-4"
-                      style={{
-                        color: ACCENT,
-                        filter: `drop-shadow(0 0 6px ${ACCENT})`,
-                      }}
-                      aria-hidden="true"
-                    />
-                  )}
                 </div>
               )
             }),
           )}
+        </div>
+
+        <div className="pointer-events-none absolute inset-0">
+          <EntityLayer
+            cell={game.player}
+            cols={MAZE[0].length}
+            rows={MAZE.length}
+            slotX={0}
+            visible={game.status !== 'idle'}
+          >
+            <span
+              className="block h-3 w-3"
+              style={{
+                borderRadius: '9999px',
+                background: '#ffd319',
+                boxShadow: '0 0 10px #ffd319',
+              }}
+            />
+          </EntityLayer>
+          {game.ghosts.map((ghost, index) => (
+            <EntityLayer
+              key={`ghost-${index}`}
+              cell={ghost}
+              cols={MAZE[0].length}
+              rows={MAZE.length}
+              slotX={ghostSlots[index] ?? 0}
+              visible={game.status !== 'idle'}
+            >
+              <Ghost
+                className="h-4 w-4"
+                style={{
+                  color: ACCENT,
+                  filter: `drop-shadow(0 0 6px ${ACCENT})`,
+                }}
+                aria-hidden="true"
+              />
+            </EntityLayer>
+          ))}
         </div>
 
         {game.status !== 'running' && (
@@ -411,7 +456,10 @@ function CyberPacman({ onScore }) {
             )}
             <button
               type="button"
-              onClick={startGame}
+              onClick={(event) => {
+                event.currentTarget.blur()
+                startGame()
+              }}
               className="arcade-btn arcade-btn-primary arcade-btn-sm flex items-center gap-2"
             >
               <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
