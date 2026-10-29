@@ -47,7 +47,7 @@ const CATEGORY_ICONS = {
   Estrategia: Brain,
 }
 
-const ACTIVE_GAME_STATUSES = new Set(['running', 'clearing', 'levelup'])
+const ACTIVE_GAME_STATUSES = new Set(['running', 'levelup'])
 
 function normalizeText(value) {
   return value

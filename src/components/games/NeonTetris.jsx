@@ -107,7 +107,14 @@ function spawnState(highScore) {
   }
 }
 
-function finalizeLock(current, merged) {
+function lockPiece(current, merged) {
+  const fullRows = []
+  merged.forEach((row, y) => {
+    if (row.every(Boolean)) {
+      fullRows.push(y)
+    }
+  })
+
   const { board: cleaned, cleared } = clearLines(merged)
   const spawn = current.next
   const lockedOut = !fits(cleaned, spawn.shape, spawn.row, spawn.col)
@@ -124,7 +131,7 @@ function finalizeLock(current, merged) {
     next: lockedOut ? current.next : randomPiece(),
     lines,
     score,
-    flashRows: [],
+    flashRows: fullRows,
     highScore: Math.max(current.highScore, score),
     status: lockedOut ? 'over' : 'running',
   }
@@ -152,30 +159,7 @@ function applyTetrisStep(current) {
     })
   })
 
-  const fullRows = []
-  merged.forEach((row, y) => {
-    if (row.every(Boolean)) {
-      fullRows.push(y)
-    }
-  })
-
-  if (fullRows.length === 0) {
-    return finalizeLock(current, merged)
-  }
-
-  return {
-    ...current,
-    board: merged,
-    flashRows: fullRows,
-    status: 'clearing',
-  }
-}
-
-function finalizeClear(current) {
-  if (current.status !== 'clearing') {
-    return current
-  }
-  return finalizeLock({ ...current, status: 'running' }, current.board)
+  return lockPiece(current, merged)
 }
 
 function applyMove(current, colDelta) {
@@ -298,14 +282,18 @@ function NeonTetris({ onScore, onStateChange }) {
   }, [highScore])
 
   useEffect(() => {
-    if (status !== 'clearing') {
+    if (game.flashRows.length === 0) {
       return undefined
     }
     const timer = window.setTimeout(() => {
-      setGame(finalizeClear)
-    }, 260)
+      setGame((current) =>
+        current.flashRows.length === 0
+          ? current
+          : { ...current, flashRows: [] },
+      )
+    }, 420)
     return () => window.clearTimeout(timer)
-  }, [status])
+  }, [game.flashRows])
 
   useEffect(() => {
     if (status !== 'running') {
@@ -408,8 +396,7 @@ function NeonTetris({ onScore, onStateChange }) {
               .flat()
               .map((cell, index) => {
                 const row = Math.floor(index / COLS)
-                const isFlashing =
-                  status === 'clearing' && game.flashRows.includes(row)
+                const isFlashing = game.flashRows.includes(row)
                 return (
                   <div
                     key={index}

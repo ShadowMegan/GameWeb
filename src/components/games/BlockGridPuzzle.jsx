@@ -6,7 +6,7 @@ const ACCENT = '#8a2be2'
 const GRID_SIZE = 8
 const CELL_POINTS = 1
 const LINE_POINTS = 10
-const FLASH_MS = 550
+const FLASH_MS = 400
 
 const PIECE_PALETTE = ['#00e5ff', '#ff2e88', '#ffd319', '#00ffa3', '#ff9f1c']
 
@@ -268,6 +268,8 @@ function BlockGridPuzzle({ onScore, onStateChange }) {
 
     const flash = collectLineCells(lines)
     flashPendingRef.current = true
+    setGrid(filled)
+    setHand(nextHand)
     setFlashCells(flash)
     setScore(nextScore)
 

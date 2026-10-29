@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import {
   ChevronDown,
   ChevronLeft,
@@ -32,6 +32,9 @@ const MAZE = [
   '#.................#',
   '###################',
 ]
+
+const COLS = MAZE[0].length
+const ROWS = MAZE.length
 
 const DIRECTIONS = [
   { x: 1, y: 0 },
@@ -248,24 +251,71 @@ function advancePacman(state) {
   }
 }
 
-function EntityLayer({ cell, cols, rows, slotX, visible, children }) {
+function EntityLayer({ cell, slotX, visible, children }) {
   return (
     <div
-      className="absolute flex items-center justify-center"
+      className="absolute left-0 top-0 flex items-center justify-center"
       style={{
-        left: `${((cell.x + 0.5) * 100) / cols}%`,
-        top: `${((cell.y + 0.5) * 100) / rows}%`,
-        width: `${100 / cols}%`,
-        height: `${100 / rows}%`,
-        transform: `translate(calc(-50% + ${slotX * 22}%), -50%)`,
-        transition: 'left 0.22s linear, top 0.22s linear',
+        width: `${100 / COLS}%`,
+        height: `${100 / ROWS}%`,
+        transform: `translate3d(calc(${cell.x * 100}% + ${slotX * 22}%), ${cell.y * 100}%, 0)`,
+        transition: `transform ${STEP_MS - 10}ms linear`,
         opacity: visible ? 1 : 0,
+        willChange: 'transform',
       }}
     >
       {children}
     </div>
   )
 }
+
+const MazeBackground = memo(function MazeBackground() {
+  return (
+    <div
+      className="grid"
+      style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}
+      aria-hidden="true"
+    >
+      {MAZE.map((row, y) =>
+        row.split('').map((symbol, x) => (
+          <div
+            key={`${x}-${y}`}
+            style={{
+              aspectRatio: '1',
+              border:
+                symbol === '#' ? '1px solid rgba(138, 43, 226, 0.6)' : undefined,
+              background: symbol === '#' ? '#8a2be2' : 'rgba(7, 3, 15, 0.6)',
+              boxShadow: symbol === '#' ? 'inset 0 0 8px #07030f' : undefined,
+            }}
+          />
+        )),
+      )}
+    </div>
+  )
+})
+
+const Dot = memo(function Dot({ x, y }) {
+  return (
+    <div
+      className="absolute flex items-center justify-center"
+      style={{
+        left: `${(x * 100) / COLS}%`,
+        top: `${(y * 100) / ROWS}%`,
+        width: `${100 / COLS}%`,
+        height: `${100 / ROWS}%`,
+      }}
+    >
+      <span
+        className="h-1.5 w-1.5"
+        style={{
+          borderRadius: '9999px',
+          background: '#ffd319',
+          boxShadow: '0 0 6px #ffd319',
+        }}
+      />
+    </div>
+  )
+})
 
 function LivesRow({ lives }) {
   return (
@@ -322,10 +372,32 @@ function CyberPacman({ onScore, onStateChange }) {
     if (status !== 'running') {
       return undefined
     }
-    const timer = window.setInterval(() => {
-      setGame(advancePacman)
-    }, STEP_MS)
-    return () => window.clearInterval(timer)
+
+    let frameId = 0
+    let lastTime = performance.now()
+    let accumulator = 0
+
+    function loop(now) {
+      accumulator += now - lastTime
+      lastTime = now
+
+      if (accumulator >= STEP_MS) {
+        const steps = Math.min(3, Math.floor(accumulator / STEP_MS))
+        accumulator = Math.min(accumulator - steps * STEP_MS, STEP_MS)
+        setGame((current) => {
+          let next = current
+          for (let index = 0; index < steps; index += 1) {
+            next = advancePacman(next)
+          }
+          return next
+        })
+      }
+
+      frameId = window.requestAnimationFrame(loop)
+    }
+
+    frameId = window.requestAnimationFrame(loop)
+    return () => window.cancelAnimationFrame(frameId)
   }, [status])
 
   function startGame() {
@@ -402,52 +474,20 @@ function CyberPacman({ onScore, onStateChange }) {
           boxShadow: `0 0 14px ${ACCENT}55, inset 0 0 22px rgba(18, 0, 43, 0.7)`,
         }}
       >
-        <div
-          className="grid"
-          style={{ gridTemplateColumns: `repeat(${MAZE[0].length}, 1fr)` }}
-        >
-          {MAZE.map((row, y) =>
-            row.split('').map((symbol, x) => {
-              const hasDot =
-                game.status !== 'over' && game.dots[keyFor({ x, y })]
+        <MazeBackground />
 
-              return (
-                <div
-                  key={`${x}-${y}`}
-                  className="relative flex items-center justify-center"
-                  style={{
-                    aspectRatio: '1',
-                    border:
-                      symbol === '#'
-                        ? '1px solid rgba(138, 43, 226, 0.6)'
-                        : undefined,
-                    background:
-                      symbol === '#' ? '#8a2be2' : 'rgba(7, 3, 15, 0.6)',
-                    boxShadow:
-                      symbol === '#' ? 'inset 0 0 8px #07030f' : undefined,
-                  }}
-                >
-                  {hasDot && (
-                    <span
-                      className="h-1.5 w-1.5"
-                      style={{
-                        borderRadius: '9999px',
-                        background: '#ffd319',
-                        boxShadow: '0 0 6px #ffd319',
-                      }}
-                    />
-                  )}
-                </div>
-              )
-            }),
-          )}
-        </div>
+        {game.status !== 'over' && (
+          <div className="pointer-events-none absolute inset-0">
+            {Object.keys(game.dots).map((key) => {
+              const [x, y] = key.split(',').map(Number)
+              return <Dot key={key} x={x} y={y} />
+            })}
+          </div>
+        )}
 
         <div className="pointer-events-none absolute inset-0">
           <EntityLayer
             cell={game.player}
-            cols={MAZE[0].length}
-            rows={MAZE.length}
             slotX={0}
             visible={game.status !== 'idle'}
           >
@@ -468,8 +508,6 @@ function CyberPacman({ onScore, onStateChange }) {
               <EntityLayer
                 key={`ghost-${index}`}
                 cell={ghost}
-                cols={MAZE[0].length}
-                rows={MAZE.length}
                 slotX={ghostSlots[index] ?? 0}
                 visible={game.status !== 'idle'}
               >
