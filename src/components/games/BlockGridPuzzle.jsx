@@ -49,6 +49,45 @@ function keyFor(row, col) {
   return `${row},${col}`
 }
 
+function getCellsBounds(cells) {
+  let minRow = Infinity
+  let maxRow = -Infinity
+  let minCol = Infinity
+  let maxCol = -Infinity
+
+  cells.forEach(([row, col]) => {
+    if (row < minRow) {
+      minRow = row
+    }
+    if (row > maxRow) {
+      maxRow = row
+    }
+    if (col < minCol) {
+      minCol = col
+    }
+    if (col > maxCol) {
+      maxCol = col
+    }
+  })
+
+  return { minRow, maxRow, minCol, maxCol }
+}
+
+function clampPlacement(cells, row, col) {
+  const { minRow, maxRow, minCol, maxCol } = getCellsBounds(cells)
+  const height = maxRow - minRow + 1
+  const width = maxCol - minCol + 1
+
+  if (height > GRID_SIZE || width > GRID_SIZE) {
+    return null
+  }
+
+  return {
+    row: Math.min(Math.max(row, -minRow), GRID_SIZE - 1 - maxRow),
+    col: Math.min(Math.max(col, -minCol), GRID_SIZE - 1 - maxCol),
+  }
+}
+
 function canPlace(grid, cells, row, col) {
   return cells.every(([dy, dx]) => {
     const targetRow = row + dy
@@ -134,8 +173,12 @@ function hasAnyFittingSlot(grid, hand) {
 }
 
 function PiecePreview({ piece, selected, onSelect }) {
-  const rows = Math.max(...piece.cells.map(([y]) => y)) + 1
-  const cols = Math.max(...piece.cells.map(([, x]) => x)) + 1
+  const { minRow, maxRow, minCol, maxCol } = getCellsBounds(piece.cells)
+  const rows = maxRow - minRow + 1
+  const cols = maxCol - minCol + 1
+  const filledCells = new Set(
+    piece.cells.map(([row, col]) => `${row - minRow},${col - minCol}`),
+  )
 
   return (
     <button
@@ -145,7 +188,7 @@ function PiecePreview({ piece, selected, onSelect }) {
         onSelect(event)
       }}
       aria-pressed={selected}
-      className={`arcade-card flex flex-col items-center justify-center gap-1 p-3 ${
+      className={`arcade-card flex flex-col items-center justify-center p-3 ${
         selected ? 'scale-105' : ''
       }`}
       style={{
@@ -156,25 +199,35 @@ function PiecePreview({ piece, selected, onSelect }) {
         opacity: selected ? 1 : 0.85,
       }}
     >
-      {Array.from({ length: rows }, (_, row) => (
-        <span key={row} className="flex" style={{ minHeight: 10 }}>
-          {Array.from({ length: cols }, (_, col) => {
-            const filled = piece.cells.some(([y, x]) => y === row && x === col)
-            return (
-              <span
-                key={col}
-                className="block"
-                style={{
-                  width: 14,
-                  height: 14,
-                  background: filled ? piece.color : 'transparent',
-                  boxShadow: filled ? `0 0 8px ${piece.color}99` : undefined,
-                }}
-              />
-            )
-          })}
-        </span>
-      ))}
+      <span
+        className="grid"
+        style={{
+          gridTemplateColumns: `repeat(${cols}, 14px)`,
+          gridTemplateRows: `repeat(${rows}, 14px)`,
+          gap: 0,
+          lineHeight: 0,
+          fontSize: 0,
+        }}
+        aria-hidden="true"
+      >
+        {Array.from({ length: rows * cols }, (_, index) => {
+          const row = Math.floor(index / cols)
+          const col = index % cols
+          const filled = filledCells.has(`${row},${col}`)
+
+          return (
+            <span
+              key={index}
+              style={{
+                width: 14,
+                height: 14,
+                background: filled ? piece.color : 'transparent',
+                boxShadow: filled ? `0 0 8px ${piece.color}99` : undefined,
+              }}
+            />
+          )
+        })}
+      </span>
     </button>
   )
 }
@@ -242,11 +295,19 @@ function BlockGridPuzzle({ onScore, onStateChange }) {
     if (!piece) {
       return
     }
-    if (!canPlace(grid, piece.cells, row, col)) {
+
+    const anchor = clampPlacement(piece.cells, row, col)
+    if (!anchor || !canPlace(grid, piece.cells, anchor.row, anchor.col)) {
       return
     }
 
-    const filled = placePiece(grid, piece.cells, row, col, piece.color)
+    const filled = placePiece(
+      grid,
+      piece.cells,
+      anchor.row,
+      anchor.col,
+      piece.color,
+    )
     const lines = findFullLines(filled)
     const cleared = lines.fullRows.length + lines.fullCols.length
     const remainingHand = hand.filter((candidate) => candidate.id !== piece.id)
@@ -291,6 +352,19 @@ function BlockGridPuzzle({ onScore, onStateChange }) {
   }
 
   const selectedPiece = hand.find((piece) => piece.id === selectedId)
+  const previewAnchor =
+    selectedPiece && hover && status === 'running'
+      ? clampPlacement(selectedPiece.cells, hover.row, hover.col)
+      : null
+  const canPreview = Boolean(
+    previewAnchor &&
+      canPlace(
+        grid,
+        selectedPiece.cells,
+        previewAnchor.row,
+        previewAnchor.col,
+      ),
+  )
 
   return (
     <div className="arcade-card flex flex-col gap-4 p-4 sm:p-5">
@@ -322,16 +396,12 @@ function BlockGridPuzzle({ onScore, onStateChange }) {
             const key = keyFor(row, col)
             const color = grid[key]
             const isFlashing = Boolean(flashCells?.has(key))
-            const canPreview =
-              status === 'running' &&
-              hover &&
-              selectedPiece &&
-              canPlace(grid, selectedPiece.cells, row, col)
             const isPreviewCell =
               canPreview &&
               selectedPiece.cells.some(
                 ([dy, dx]) =>
-                  hover.row + dy === row && hover.col + dx === col,
+                  previewAnchor.row + dy === row &&
+                  previewAnchor.col + dx === col,
               )
             const isCursorCell =
               Boolean(selectedPiece) &&
@@ -340,7 +410,10 @@ function BlockGridPuzzle({ onScore, onStateChange }) {
               hover.row === row &&
               hover.col === col
             const isBlockedCell =
-              isCursorCell && !canPlace(grid, selectedPiece.cells, row, col)
+              isCursorCell &&
+              status === 'running' &&
+              Boolean(selectedPiece) &&
+              !canPreview
 
             return (
               <button
