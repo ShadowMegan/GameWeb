@@ -11,7 +11,7 @@ import {
 import { readHighScore, saveHighScore } from '../../lib/scores.js'
 
 const ACCENT = '#ff2e88'
-const STEP_MS = 260
+const STEP_MS = 310
 const CHASE_PROBABILITY = 0.45
 const POINTS_PER_DOT = 10
 const LEVEL_BONUS = 50
@@ -67,7 +67,11 @@ function parseMaze() {
       } else if (symbol === 'P') {
         playerStart = { x, y }
       } else if (symbol === 'G') {
-        ghostStarts.push({ x, y })
+        ghostStarts.push({
+          x,
+          y,
+          kind: ghostStarts.length < 2 ? 'fast' : 'slow',
+        })
       }
     })
   })
@@ -91,6 +95,7 @@ function isWall(x, y) {
 
 function createFreshState(highScore) {
   return {
+    ticks: 0,
     dots: { ...DOT_STARTS },
     player: { ...PLAYER_START },
     ghosts: GHOST_STARTS.map((ghost) => ({ ...ghost })),
@@ -120,7 +125,8 @@ function moveGhost(ghost, player, chaseProbability) {
     return ghost
   }
 
-  const chases = Math.random() < chaseProbability
+  const isPatrol = ghost.kind === 'slow'
+  const chases = Math.random() < chaseProbability * (isPatrol ? 0.4 : 1)
   let direction = options[Math.floor(Math.random() * options.length)]
 
   if (chases) {
@@ -139,6 +145,7 @@ function moveGhost(ghost, player, chaseProbability) {
   }
 
   return {
+    ...ghost,
     x: ghost.x + direction.x,
     y: ghost.y + direction.y,
   }
@@ -149,6 +156,7 @@ function advancePacman(state) {
     return state
   }
 
+  const ticks = (state.ticks ?? 0) + 1
   const chaseProbability = Math.min(
     0.85,
     CHASE_PROBABILITY + (state.level - 1) * 0.05,
@@ -169,9 +177,12 @@ function advancePacman(state) {
   }
 
   const previousGhosts = state.ghosts
-  let ghosts = state.ghosts.map((ghost) =>
-    moveGhost(ghost, player, chaseProbability),
-  )
+  let ghosts = state.ghosts.map((ghost) => {
+    if (ghost.kind === 'slow' && ticks % 2 === 1) {
+      return ghost
+    }
+    return moveGhost(ghost, player, chaseProbability)
+  })
 
   let collided = ghosts.some(
     (ghost) => ghost.x === player.x && ghost.y === player.y,
@@ -207,6 +218,7 @@ function advancePacman(state) {
   if (status === 'running' && Object.keys(dots).length === 0) {
     const nextScore = state.score + LEVEL_BONUS
     return {
+      ticks: 0,
       dots: { ...DOT_STARTS },
       player: { ...PLAYER_START },
       ghosts: GHOST_STARTS.map((ghost) => ({ ...ghost })),
@@ -221,6 +233,7 @@ function advancePacman(state) {
 
   return {
     ...state,
+    ticks,
     dots,
     player: playerState,
     ghosts: ghostState,
@@ -282,6 +295,11 @@ function CyberPacman({ onScore }) {
   const beatRecord =
     status === 'over' && score > 0 && score >= highScore
   const lastSavedScoreRef = useRef(highScore)
+  const gameRef = useRef(game)
+
+  useEffect(() => {
+    gameRef.current = game
+  })
 
   useEffect(() => {
     if (score > 0) {
@@ -307,24 +325,34 @@ function CyberPacman({ onScore }) {
   }, [status])
 
   function startGame() {
-    setGame(createFreshState(highScore))
+    setGame(createFreshState(gameRef.current.highScore))
   }
 
   function setPlayerDirection(direction) {
     setGame((current) =>
-      current.status === 'running' ? { ...current, direction } : current,
+      current.status === 'running' &&
+      (current.direction.x !== direction.x ||
+        current.direction.y !== direction.y)
+        ? { ...current, direction }
+        : current,
     )
   }
 
   useEffect(() => {
     function handleKey(event) {
+      const current = gameRef.current
       const direction = DIRECTION_BY_KEY[event.key.toLowerCase()]
       if (direction) {
         event.preventDefault()
-        setPlayerDirection(direction)
+        if (current.status === 'running') {
+          setPlayerDirection(direction)
+        }
         return
       }
-      if ((event.key === 'Enter' || event.key === ' ') && status !== 'running') {
+      const canStart =
+        (event.key === 'Enter' || event.key === ' ') &&
+        (current.status === 'idle' || current.status === 'over')
+      if (canStart) {
         event.preventDefault()
         startGame()
       }
@@ -332,7 +360,7 @@ function CyberPacman({ onScore }) {
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  })
+  }, [])
 
   const ghostSlots = []
   const ghostCellCount = {}
@@ -428,25 +456,30 @@ function CyberPacman({ onScore }) {
               }}
             />
           </EntityLayer>
-          {game.ghosts.map((ghost, index) => (
-            <EntityLayer
-              key={`ghost-${index}`}
-              cell={ghost}
-              cols={MAZE[0].length}
-              rows={MAZE.length}
-              slotX={ghostSlots[index] ?? 0}
-              visible={game.status !== 'idle'}
-            >
-              <Ghost
-                className="h-4 w-4"
-                style={{
-                  color: ACCENT,
-                  filter: `drop-shadow(0 0 6px ${ACCENT})`,
-                }}
-                aria-hidden="true"
-              />
-            </EntityLayer>
-          ))}
+          {game.ghosts.map((ghost, index) => {
+            const ghostColor =
+              ghost.kind === 'slow' ? '#8a2be2' : ACCENT
+
+            return (
+              <EntityLayer
+                key={`ghost-${index}`}
+                cell={ghost}
+                cols={MAZE[0].length}
+                rows={MAZE.length}
+                slotX={ghostSlots[index] ?? 0}
+                visible={game.status !== 'idle'}
+              >
+                <Ghost
+                  className="h-4 w-4"
+                  style={{
+                    color: ghostColor,
+                    filter: `drop-shadow(0 0 6px ${ghostColor})`,
+                  }}
+                  aria-hidden="true"
+                />
+              </EntityLayer>
+            )
+          })}
         </div>
 
         {game.status !== 'running' && (

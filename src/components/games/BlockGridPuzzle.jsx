@@ -179,56 +179,11 @@ function PiecePreview({ piece, selected, onSelect }) {
   )
 }
 
-const FLOATING_CELL = 22
-
-function FloatingPiece({ piece, cursor }) {
-  const cols = Math.max(...piece.cells.map(([, x]) => x)) + 1
-  const rows = Math.max(...piece.cells.map(([y]) => y)) + 1
-
-  return (
-    <div
-      className="pointer-events-none fixed z-30"
-      style={{
-        left: cursor.x,
-        top: cursor.y,
-        transform: 'translate(-50%, -50%)',
-        opacity: 0.82,
-        filter: `drop-shadow(0 0 10px ${piece.color})`,
-      }}
-    >
-      <div
-        style={{
-          position: 'relative',
-          width: cols * FLOATING_CELL,
-          height: rows * FLOATING_CELL,
-        }}
-      >
-        {piece.cells.map(([dy, dx]) => (
-          <span
-            key={`${dy}-${dx}`}
-            style={{
-              position: 'absolute',
-              left: dx * FLOATING_CELL,
-              top: dy * FLOATING_CELL,
-              width: FLOATING_CELL,
-              height: FLOATING_CELL,
-              background: piece.color,
-              boxShadow:
-                'inset 0 0 8px rgba(255, 255, 255, 0.45), 0 0 10px rgba(7, 3, 15, 0.5)',
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
 function BlockGridPuzzle({ onScore }) {
   const [grid, setGrid] = useState({})
   const [hand, setHand] = useState(createHand)
   const [selectedId, setSelectedId] = useState(null)
   const [hover, setHover] = useState(null)
-  const [cursor, setCursor] = useState(null)
   const [flashCells, setFlashCells] = useState(null)
   const [score, setScore] = useState(0)
   const [status, setStatus] = useState('idle')
@@ -253,17 +208,6 @@ function BlockGridPuzzle({ onScore }) {
     }
   }, [])
 
-  useEffect(() => {
-    if (!selectedId || status !== 'running') {
-      return undefined
-    }
-    function handleMouseMove(event) {
-      setCursor({ x: event.clientX, y: event.clientY })
-    }
-    window.addEventListener('mousemove', handleMouseMove)
-    return () => window.removeEventListener('mousemove', handleMouseMove)
-  }, [selectedId, status])
-
   function startGame() {
     if (clearTimerRef.current) {
       window.clearTimeout(clearTimerRef.current)
@@ -274,20 +218,14 @@ function BlockGridPuzzle({ onScore }) {
     setHand(createHand())
     setSelectedId(null)
     setHover(null)
-    setCursor(null)
     setFlashCells(null)
     setScore(0)
     setStatus('running')
   }
 
-  function selectPiece(nextId, event) {
+  function selectPiece(nextId) {
     if (flashPendingRef.current) {
       return
-    }
-    if (nextId === null) {
-      setCursor(null)
-    } else if (event) {
-      setCursor({ x: event.clientX, y: event.clientY })
     }
     setSelectedId(nextId)
   }
@@ -312,7 +250,6 @@ function BlockGridPuzzle({ onScore }) {
     const nextScore = score + piece.cells.length * CELL_POINTS + cleared * LINE_POINTS
 
     setSelectedId(null)
-    setCursor(null)
     setHover(null)
 
     if (nextScore > highScore) {
@@ -390,31 +327,52 @@ function BlockGridPuzzle({ onScore }) {
                 ([dy, dx]) =>
                   hover.row + dy === row && hover.col + dx === col,
               )
+            const isCursorCell =
+              Boolean(selectedPiece) &&
+              status === 'running' &&
+              hover &&
+              hover.row === row &&
+              hover.col === col
+            const isBlockedCell =
+              isCursorCell && !canPlace(grid, selectedPiece.cells, row, col)
 
             return (
               <button
                 type="button"
                 key={key}
                 onClick={() => handleCellClick(row, col)}
-                onMouseEnter={() => setHover({ row, col })}
+                onMouseEnter={() => {
+                  setHover({ row, col })
+                  if (isCursorCell && !isBlockedCell) {
+                    handleCellClick(row, col)
+                  }
+                }}
                 onFocus={() => setHover({ row, col })}
                 aria-label={`Celda ${row + 1}-${col + 1}`}
                 className={isFlashing ? 'arcade-clear-cell' : ''}
                 style={{
                   aspectRatio: '1',
-                  border: isPreviewCell
-                    ? `1px solid ${selectedPiece.color}`
-                    : '1px solid rgba(138, 43, 226, 0.28)',
+                  border: isBlockedCell
+                    ? '2px solid rgba(255, 46, 136, 0.75)'
+                    : isCursorCell
+                      ? `2px solid ${selectedPiece.color}`
+                      : isPreviewCell
+                        ? `1px solid ${selectedPiece.color}`
+                        : '1px solid rgba(138, 43, 226, 0.28)',
                   background: color
                     ? color
-                    : isPreviewCell
-                      ? `${selectedPiece.color}55`
-                      : 'rgba(7, 3, 15, 0.65)',
+                    : isBlockedCell
+                      ? 'rgba(255, 46, 136, 0.22)'
+                      : isPreviewCell
+                        ? `${selectedPiece.color}55`
+                        : 'rgba(7, 3, 15, 0.65)',
                   boxShadow: color
                     ? `inset 0 0 8px ${color}aa`
-                    : isPreviewCell
-                      ? `0 0 10px ${selectedPiece.color}88`
-                      : undefined,
+                    : isBlockedCell
+                      ? 'inset 0 0 10px rgba(255, 46, 136, 0.4)'
+                      : isPreviewCell
+                        ? `0 0 10px ${selectedPiece.color}88`
+                        : undefined,
                 }}
               />
             )
@@ -471,22 +429,16 @@ function BlockGridPuzzle({ onScore }) {
               key={piece.id}
               piece={piece}
               selected={selectedId === piece.id}
-              onSelect={(event) =>
-                selectPiece(
-                  selectedId === piece.id ? null : piece.id,
-                  event,
-                )
+              onSelect={() =>
+                selectPiece(selectedId === piece.id ? null : piece.id)
               }
             />
           ))}
       </div>
 
-      {selectedPiece && cursor && !hover && (
-        <FloatingPiece piece={selectedPiece} cursor={cursor} />
-      )}
-
       <p className="arcade-hint text-center">
-        Selecciona una pieza y haz clic en una celda; la pieza sigue tu cursor.
+        Selecciona una pieza de abajo y haz clic en la celda del tablero; verás
+        el borde neón sobre el destino antes de soltar la pieza.
         Cada celda colocada suma 1 y cada línea completa suma 10.
       </p>
     </div>

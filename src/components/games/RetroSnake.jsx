@@ -12,7 +12,6 @@ const ACCENT = '#00e5ff'
 const GRID_SIZE = 15
 const STEP_MS = 140
 const POINTS_PER_APPLE = 10
-const APPLE_GOAL = 5
 const MAX_PENDING = 3
 const OBSTACLE_MIN_DISTANCE = 5
 
@@ -55,25 +54,95 @@ function randomApple(excluded) {
   return null
 }
 
+const OBSTACLE_SHAPES = [
+  [
+    [0, 0],
+    [0, 1],
+    [1, 0],
+    [1, 1],
+  ],
+  [
+    [0, 1],
+    [1, 0],
+    [1, 1],
+    [1, 2],
+  ],
+  [
+    [0, 0],
+    [1, 0],
+    [1, 1],
+    [1, 2],
+  ],
+  [
+    [0, 2],
+    [1, 0],
+    [1, 1],
+    [1, 2],
+  ],
+  [
+    [0, 1],
+    [1, 0],
+    [1, 1],
+    [2, 0],
+  ],
+  [
+    [0, 0],
+    [1, 0],
+    [1, 1],
+    [2, 1],
+  ],
+  [
+    [0, 0],
+    [0, 1],
+    [0, 2],
+  ],
+  [
+    [0, 0],
+    [1, 0],
+    [2, 0],
+  ],
+]
+
+function pickAppleGoal(level) {
+  const goal = level + 3 + Math.floor(Math.random() * 5)
+  return Math.min(20, Math.max(5, goal))
+}
+
 function generateObstacles(snake, level) {
-  const count = Math.min(level + 2, 9)
+  const blockCount = Math.min(level, 5)
   const head = snake[0]
   const obstacles = []
 
-  for (let guard = 0; guard < count * 40 && obstacles.length < count; guard += 1) {
-    const cell = {
-      x: Math.floor(Math.random() * GRID_SIZE),
-      y: Math.floor(Math.random() * GRID_SIZE),
+  for (
+    let guard = 0;
+    guard < blockCount * 60 && obstacles.length < blockCount * 4;
+    guard += 1
+  ) {
+    const shape =
+      OBSTACLE_SHAPES[Math.floor(Math.random() * OBSTACLE_SHAPES.length)]
+    const flip = Math.random() < 0.5
+    const width = Math.max(...shape.map(([, dx]) => dx)) + 1
+    const height = Math.max(...shape.map(([dy]) => dy)) + 1
+    const anchor = {
+      x: Math.floor(Math.random() * (GRID_SIZE - width + 1)),
+      y: Math.floor(Math.random() * (GRID_SIZE - height + 1)),
     }
-    const sameRowAsSpawn = cell.y === head.y
-    const tooClose =
-      Math.abs(cell.x - head.x) + Math.abs(cell.y - head.y) <
-      OBSTACLE_MIN_DISTANCE
-    const duplicate = obstacles.some(
-      (other) => other.x === cell.x && other.y === cell.y,
+    const cells = shape.map(([dy, dx]) => ({
+      x: anchor.x + (flip ? width - 1 - dx : dx),
+      y: anchor.y + dy,
+    }))
+    const isValid = cells.every(
+      (cell) =>
+        cell.y !== head.y &&
+        Math.abs(cell.x - head.x) + Math.abs(cell.y - head.y) >=
+          OBSTACLE_MIN_DISTANCE &&
+        !obstacles.some(
+          (other) => other.x === cell.x && other.y === cell.y,
+        ) &&
+        !snake.some((part) => part.x === cell.x && part.y === cell.y),
     )
-    if (!sameRowAsSpawn && !tooClose && !duplicate) {
-      obstacles.push(cell)
+    if (isValid) {
+      obstacles.push(...cells)
     }
   }
 
@@ -141,7 +210,7 @@ function stepSnake(current) {
   const applesEaten = current.applesEaten + 1
   const score = current.score + POINTS_PER_APPLE
 
-  if (applesEaten >= APPLE_GOAL) {
+  if (applesEaten >= current.applesGoal) {
     return {
       ...current,
       direction,
@@ -175,6 +244,7 @@ function createSnakeGame(highScore) {
     pending: [],
     level: 1,
     applesEaten: 0,
+    applesGoal: pickAppleGoal(1),
     score: 0,
     highScore,
     status: 'running',
@@ -192,6 +262,7 @@ function createLevelState(previous) {
     pending: [],
     level: previous.level + 1,
     applesEaten: 0,
+    applesGoal: pickAppleGoal(previous.level + 1),
     score: previous.score,
     highScore: previous.highScore,
     status: 'running',
@@ -261,7 +332,7 @@ function RetroSnake({ onScore }) {
     ...createSnakeGame(readHighScore('retro-snake')),
     status: 'idle',
   }))
-  const { snake, apple, score, highScore, status, level, applesEaten } = game
+  const { snake, apple, score, highScore, status, level, applesEaten, applesGoal } = game
   const beatRecord = status === 'over' && score > 0 && score >= highScore
   const lastSavedScoreRef = useRef(highScore)
   const gameRef = useRef(game)
@@ -364,7 +435,7 @@ function RetroSnake({ onScore }) {
           <span>
             Manzanas:{' '}
             <span style={{ color: ACCENT }}>
-              {applesEaten}/{APPLE_GOAL}
+              {applesEaten}/{applesGoal}
             </span>
           </span>
         </p>
@@ -403,7 +474,7 @@ function RetroSnake({ onScore }) {
               <>
                 <p className="arcade-subtitle">RETRO SNAKE</p>
                 <p className="arcade-hint">
-                  W A S D o FLECHAS · come {APPLE_GOAL} manzanas por fase
+                  W A S D o FLECHAS · come de 5 a 20 manzanas por fase
                 </p>
               </>
             )}
