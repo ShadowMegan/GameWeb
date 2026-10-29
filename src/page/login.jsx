@@ -1,9 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Check, CircleAlert, Eye, EyeOff, Gamepad2 } from 'lucide-react'
+import {
+  ArrowLeft,
+  Check,
+  CircleAlert,
+  Crown,
+  Eye,
+  EyeOff,
+  Flame,
+  Gamepad2,
+  Skull,
+  Zap,
+} from 'lucide-react'
 import GameCatalog from '../components/catalog.jsx'
 import ThemeSelector from '../components/ThemeSelector.jsx'
 import CommunityComments from '../components/CommunityComments.jsx'
+import ArcadeAvatar from '../components/ArcadeAvatar.jsx'
 import { useTheme } from '../context/theme.js'
+import { containsBadWords, getBadWordsErrorMessage } from '../lib/badWords.js'
+import { AVATAR_ICONS, NEON_COLORS } from '../lib/profile.js'
 
 const USERS_KEY = 'gameweb_users'
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
@@ -74,6 +88,14 @@ const inputBase = 'arcade-input px-4 py-3'
 const labelClass = 'arcade-label mb-2 block'
 const errorText = 'arcade-error mt-1.5'
 const inputState = (hasError) => (hasError ? 'arcade-input-error' : '')
+
+const AVATAR_ICON_MAP = {
+  gamepad: Gamepad2,
+  zap: Zap,
+  flame: Flame,
+  skull: Skull,
+  crown: Crown,
+}
 
 function loadUsers() {
   try {
@@ -158,6 +180,10 @@ function validateUsername(rawUsername) {
   }
   if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
     return 'Usa entre 3 y 20 caracteres: letras, números o guion bajo.'
+  }
+  const badWordsError = containsBadWords(username)
+  if (badWordsError) {
+    return getBadWordsErrorMessage()
   }
   return ''
 }
@@ -279,7 +305,7 @@ async function hashPassword(password, salt) {
     .join('')
 }
 
-function getInitials(user) {
+function _unusedRemove(user) {
   const source = (user.username || user.name || '?').trim()
   const parts = source.split(/\s+/).filter(Boolean)
   if (parts.length === 1) {
@@ -395,6 +421,8 @@ function LoginPage() {
   const [profileForm, setProfileForm] = useState({
     username: '',
     description: '',
+    avatar: 'gamepad',
+    neonColor: 'pink',
   })
   const [profileErrors, setProfileErrors] = useState({})
   const [profileStatus, setProfileStatus] = useState(null)
@@ -509,6 +537,8 @@ function LoginPage() {
       setProfileForm({
         username: user.username,
         description: user.description,
+        avatar: user.avatar || 'gamepad',
+        neonColor: user.neonColor || 'pink',
       })
       setProfileErrors({})
       setProfileStatus(null)
@@ -636,6 +666,8 @@ function LoginPage() {
         ...sessionUser,
         username,
         description: profileForm.description.trim(),
+        avatar: profileForm.avatar || sessionUser.avatar || 'gamepad',
+        neonColor: profileForm.neonColor || sessionUser.neonColor || 'pink',
       },
     }
 
@@ -1100,9 +1132,7 @@ function LoginPage() {
             </div>
             <div className="arcade-card p-5">
               <div className="flex flex-wrap items-center gap-4">
-                <div className="arcade-avatar flex h-16 w-16 items-center justify-center text-xl font-bold">
-                  {getInitials(sessionUser)}
-                </div>
+                <ArcadeAvatar user={sessionUser} size="lg" />
                 <div className="min-w-0">
                   <p className="arcade-profile-name truncate">
                     @{sessionUser.username}
@@ -1145,6 +1175,86 @@ function LoginPage() {
                 </div>
               </dl>
             </div>
+
+            <section
+              className="arcade-card p-5"
+              aria-labelledby="profile-avatar-title"
+            >
+              <h2 id="profile-avatar-title" className="arcade-profile-name mb-4 text-center">
+                Personaliza tu avatar
+              </h2>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                {AVATAR_ICONS.map((option) => {
+                  const Icon = AVATAR_ICON_MAP[option.id] ?? Gamepad2
+                  const isActive = (profileForm.avatar || 'gamepad') === option.id
+                  const neonColor = NEON_COLORS.find((c) => c.id === (profileForm.neonColor || 'pink'))?.value ?? '#ff2e88'
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={isActive}
+                      aria-label={`Avatar ${option.label}`}
+                      title={option.label}
+                      onClick={() => {
+                        setProfileForm((previous) => ({
+                          ...previous,
+                          avatar: option.id,
+                        }))
+                        setProfileStatus(null)
+                      }}
+                      className="theme-swatch"
+                      style={{
+                        '--swatch-a': '#ff2e88',
+                        '--swatch-b': '#00e5ff',
+                        '--swatch-c': '#8a2be2',
+                      }}
+                    >
+                      <span className="theme-swatch-ring" data-active={isActive || undefined}>
+                        <span className="theme-swatch-inner" />
+                      </span>
+                      <span className="theme-swatch-label">{option.label}</span>
+                      <Icon className="h-5 w-5" style={{ color: neonColor }} />
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                {NEON_COLORS.map((option) => {
+                  const isActive = (profileForm.neonColor || 'pink') === option.id
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={isActive}
+                      aria-label={`Color de neón ${option.label}`}
+                      title={option.label}
+                      onClick={() => {
+                        setProfileForm((previous) => ({
+                          ...previous,
+                          neonColor: option.id,
+                        }))
+                        setProfileStatus(null)
+                      }}
+                      className="arcade-btn arcade-btn-secondary arcade-btn-sm"
+                      style={{
+                        borderColor: option.value,
+                        boxShadow: `0 0 10px ${option.value}55`,
+                      }}
+                    >
+                      <span
+                        className="inline-block h-3.5 w-3.5 rounded-full"
+                        style={{ backgroundColor: option.value, boxShadow: `0 0 8px ${option.value}` }}
+                        aria-hidden="true"
+                      />
+                      {option.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
 
             <FormMessage status={profileStatus} />
 

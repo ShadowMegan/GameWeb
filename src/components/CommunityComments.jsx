@@ -7,6 +7,7 @@ import {
   loadComments,
   saveComments,
 } from '../lib/comments.js'
+import { containsBadWords, getBadWordsErrorMessage } from '../lib/badWords.js'
 
 const EMPTY_FORM = { user: '', message: '', stars: 5 }
 
@@ -60,6 +61,12 @@ function CommunityComments({ sessionUser }) {
     }
     if (!resolvedUser.trim()) {
       setStatus({ type: 'error', message: 'Ingresa tu nombre de usuario.' })
+      return
+    }
+
+    const badWordsError = containsBadWords(resolvedUser) || containsBadWords(form.message)
+    if (badWordsError) {
+      setStatus({ type: 'error', message: getBadWordsErrorMessage() })
       return
     }
 

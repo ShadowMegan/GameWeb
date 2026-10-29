@@ -24,6 +24,7 @@ import {
 } from '../lib/scores.js'
 import GameShell from './games/GameShell.jsx'
 import GameStage from './games/GameStage.jsx'
+import ArcadeAvatar from './ArcadeAvatar.jsx'
 
 const searchInputClass = 'arcade-input w-full pl-12 pr-4 py-3'
 const chipBase = 'arcade-chip'
@@ -72,7 +73,7 @@ function storeFilter(key, value) {
   }
 }
 
-function getInitials(user) {
+function _unusedRemoveReal(user) {
   const parts = (user.name || user.username || '?').split(/\s+/).filter(Boolean)
   if (parts.length === 1) {
     return parts[0].slice(0, 2).toUpperCase()
@@ -380,9 +381,7 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
   return (
     <div className="animate-fade-slide flex flex-col gap-5">
       <div className="arcade-card flex flex-wrap items-center gap-4 p-4">
-        <div className="arcade-avatar flex h-12 w-12 items-center justify-center text-base font-bold">
-          {getInitials(user)}
-        </div>
+                <ArcadeAvatar user={user} size="sm" />
         <div className="min-w-0">
           <p className="arcade-profile-name truncate">{user.name}</p>
           <p className="arcade-hint truncate">
