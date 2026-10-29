@@ -9,17 +9,21 @@ import {
   LogOut,
   Puzzle,
   Rocket,
+  Save,
   Search,
   Trophy,
   User,
+  X,
 } from 'lucide-react'
 import { GAMES, GAME_CATEGORIES } from '../data/games.js'
-import { readHighScore } from '../lib/scores.js'
+import {
+  readHighScore,
+  readProgress,
+  saveHighScore,
+  saveProgress,
+} from '../lib/scores.js'
 import GameShell from './games/GameShell.jsx'
-import RetroSnake from './games/RetroSnake.jsx'
-import NeonTetris from './games/NeonTetris.jsx'
-import CyberPacman from './games/CyberPacman.jsx'
-import BlockGridPuzzle from './games/BlockGridPuzzle.jsx'
+import GameStage from './games/GameStage.jsx'
 
 const searchInputClass = 'arcade-input w-full pl-12 pr-4 py-3'
 const chipBase =
@@ -43,12 +47,7 @@ const CATEGORY_ICONS = {
   Estrategia: Brain,
 }
 
-const GAME_VIEWS = {
-  'retro-snake': RetroSnake,
-  'neon-tetris': NeonTetris,
-  'cyber-pacman': CyberPacman,
-  'block-grid-puzzle': BlockGridPuzzle,
-}
+const ACTIVE_GAME_STATUSES = new Set(['running', 'clearing', 'levelup'])
 
 function normalizeText(value) {
   return value
@@ -178,6 +177,66 @@ function EmptyCatalog({ query, category, onReset }) {
   )
 }
 
+function ExitConfirmDialog({ gameName, score, onSave, onDiscard, onCancel }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#07030fe6] p-4"
+      role="presentation"
+    >
+      <div
+        className="arcade-panel w-full max-w-md p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="exit-dialog-title"
+        aria-describedby="exit-dialog-description"
+      >
+        <div className="flex items-start gap-3">
+          <AlertCircle
+            className="mt-0.5 h-8 w-8 shrink-0 text-[#ffd319]"
+            aria-hidden="true"
+          />
+          <div>
+            <h2 id="exit-dialog-title" className="arcade-title text-base">
+              SALIR DE LA PARTIDA
+            </h2>
+            <p
+              id="exit-dialog-description"
+              className="mt-2 text-sm leading-relaxed text-[#d9c8ff]"
+            >
+              Estás jugando <span className="text-white">{gameName}</span> con{' '}
+              <span className="text-[#ffd319]">{score}</span> puntos. ¿Quieres
+              guardar tu progreso actual antes de salir?
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center justify-center gap-2"
+          >
+            <X className="h-4 w-4" aria-hidden="true" /> Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onDiscard}
+            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center justify-center gap-2"
+          >
+            Salir sin guardar
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            className="arcade-btn arcade-btn-primary arcade-btn-sm flex items-center justify-center gap-2"
+          >
+            <Save className="h-4 w-4" aria-hidden="true" /> Guardar y salir
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function GameCatalog({ user, onEditProfile, onLogout }) {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState(() =>
@@ -187,6 +246,14 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
     readStoredFilter(SORT_STORAGE_KEY, SORT_VALUES, 'az'),
   )
   const [activeGame, setActiveGame] = useState(null)
+  const [gameSession, setGameSession] = useState({
+    status: 'idle',
+    score: 0,
+    level: 1,
+  })
+  const [savedProgress, setSavedProgress] = useState(null)
+  const [exitPromptOpen, setExitPromptOpen] = useState(false)
+  const [pendingExitAction, setPendingExitAction] = useState('catalog')
   const [highScores, setHighScores] = useState(() =>
     Object.fromEntries(GAMES.map((game) => [game.id, readHighScore(game.id)])),
   )
@@ -208,13 +275,85 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
     })
   }, [])
 
+  const handleSessionChange = useCallback((next) => {
+    const normalized = {
+      status: next.status ?? 'idle',
+      score: next.score ?? 0,
+      level: next.level ?? 1,
+    }
+    setGameSession((previous) => {
+      if (
+        previous.status === normalized.status &&
+        previous.score === normalized.score &&
+        previous.level === normalized.level
+      ) {
+        return previous
+      }
+      return normalized
+    })
+  }, [])
+
+  const handleActiveGameScore = useCallback(
+    (score) => {
+      if (activeGame) {
+        handleScore(activeGame, score)
+      }
+    },
+    [activeGame, handleScore],
+  )
+
+  const inProgress = ACTIVE_GAME_STATUSES.has(gameSession.status)
+
   function closeGame() {
     setActiveGame(null)
+    setGameSession({ status: 'idle', score: 0, level: 1 })
+    setSavedProgress(null)
+    setExitPromptOpen(false)
+    setPendingExitAction('catalog')
     setHighScores(
       Object.fromEntries(
         GAMES.map((game) => [game.id, readHighScore(game.id)]),
       ),
     )
+  }
+
+  function openGame(gameId) {
+    const game = GAMES.find((candidate) => candidate.id === gameId)
+    if (!game) {
+      return
+    }
+    setActiveGame(game.id)
+    setGameSession({ status: 'idle', score: 0, level: 1 })
+    setSavedProgress(readProgress(game.id))
+    setExitPromptOpen(false)
+  }
+
+  function performExit(action, shouldSave) {
+    if (shouldSave && activeGame && gameSession.score > 0) {
+      saveProgress(activeGame, {
+        score: gameSession.score,
+        level: gameSession.level,
+        status: gameSession.status,
+      })
+      if (gameSession.score > (highScores[activeGame] ?? 0)) {
+        saveHighScore(activeGame, gameSession.score)
+      }
+    }
+    closeGame()
+    if (action === 'profile') {
+      onEditProfile()
+    } else if (action === 'logout') {
+      onLogout()
+    }
+  }
+
+  function requestExit(action = 'catalog') {
+    if (inProgress) {
+      setPendingExitAction(action)
+      setExitPromptOpen(true)
+      return
+    }
+    performExit(action, false)
   }
 
   const filteredGames = useMemo(() => {
@@ -260,14 +399,14 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={onEditProfile}
+            onClick={() => requestExit('profile')}
             className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-2"
           >
             <User className="h-4 w-4" aria-hidden="true" /> Mi perfil
           </button>
           <button
             type="button"
-            onClick={onLogout}
+            onClick={() => requestExit('logout')}
             className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-2"
           >
             <LogOut className="h-4 w-4" aria-hidden="true" /> Cerrar sesión
@@ -278,14 +417,42 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
       {activeGame ? (
         (() => {
           const activeGameData = GAMES.find((game) => game.id === activeGame)
-          const GameView = GAME_VIEWS[activeGame]
-          if (!activeGameData || !GameView) {
-            return null
+          if (!activeGameData) {
+            return (
+              <EmptyCatalog
+                query={query}
+                category={category}
+                onReset={resetFilters}
+              />
+            )
           }
           return (
-            <GameShell game={activeGameData} onExit={closeGame}>
-              <GameView onScore={(score) => handleScore(activeGame, score)} />
-            </GameShell>
+            <>
+                <GameShell
+                  game={activeGameData}
+                  onExit={() => requestExit('catalog')}
+                  highScore={highScores[activeGame] ?? 0}
+                  savedProgress={savedProgress}
+                  inProgress={inProgress}
+                >
+                  <GameStage
+                    key={activeGameData.id}
+                    game={activeGameData}
+                    onExit={() => requestExit('catalog')}
+                    onScore={handleActiveGameScore}
+                    onStateChange={handleSessionChange}
+                  />
+                </GameShell>
+                {exitPromptOpen && (
+                  <ExitConfirmDialog
+                    gameName={activeGameData.name}
+                    score={gameSession.score}
+                    onSave={() => performExit(pendingExitAction, true)}
+                    onDiscard={() => performExit(pendingExitAction, false)}
+                    onCancel={() => setExitPromptOpen(false)}
+                  />
+                )}
+            </>
           )
         })()
       ) : (
@@ -362,7 +529,7 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
                   key={game.id}
                   game={game}
                   highScore={highScores[game.id] ?? 0}
-                  onPlay={() => setActiveGame(game.id)}
+                  onPlay={() => openGame(game.id)}
                 />
               ))}
             </ul>

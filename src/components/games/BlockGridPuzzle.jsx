@@ -179,7 +179,7 @@ function PiecePreview({ piece, selected, onSelect }) {
   )
 }
 
-function BlockGridPuzzle({ onScore }) {
+function BlockGridPuzzle({ onScore, onStateChange }) {
   const [grid, setGrid] = useState({})
   const [hand, setHand] = useState(createHand)
   const [selectedId, setSelectedId] = useState(null)
@@ -199,6 +199,10 @@ function BlockGridPuzzle({ onScore }) {
       onScore?.(score)
     }
   }, [score, onScore])
+
+  useEffect(() => {
+    onStateChange?.({ status, score })
+  }, [status, score, onStateChange])
 
   useEffect(() => {
     return () => {

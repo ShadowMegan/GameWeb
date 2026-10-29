@@ -263,7 +263,7 @@ function NextPiecePreview({ piece }) {
   )
 }
 
-function NeonTetris({ onScore }) {
+function NeonTetris({ onScore, onStateChange }) {
   const [game, setGame] = useState(() => ({
     ...spawnState(readHighScore('neon-tetris')),
     status: 'idle',
@@ -271,6 +271,7 @@ function NeonTetris({ onScore }) {
   const score = game.score
   const highScore = game.highScore
   const status = game.status
+  const lines = game.lines
   const beatRecord = status === 'over' && score > 0 && score >= highScore
   const lastSavedScoreRef = useRef(highScore)
   const gameRef = useRef(game)
@@ -284,6 +285,10 @@ function NeonTetris({ onScore }) {
       onScore?.(score)
     }
   }, [score, onScore])
+
+  useEffect(() => {
+    onStateChange?.({ status, score, level: lines })
+  }, [status, score, lines, onStateChange])
 
   useEffect(() => {
     if (highScore > lastSavedScoreRef.current) {

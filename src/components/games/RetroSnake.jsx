@@ -327,7 +327,7 @@ function BoardCell({ x, y, snake, apple, obstacleSet }) {
   )
 }
 
-function RetroSnake({ onScore }) {
+function RetroSnake({ onScore, onStateChange }) {
   const [game, setGame] = useState(() => ({
     ...createSnakeGame(readHighScore('retro-snake')),
     status: 'idle',
@@ -349,6 +349,10 @@ function RetroSnake({ onScore }) {
       onScore?.(score)
     }
   }, [score, onScore])
+
+  useEffect(() => {
+    onStateChange?.({ status, score, level })
+  }, [status, score, level, onStateChange])
 
   useEffect(() => {
     if (highScore > lastSavedScoreRef.current) {

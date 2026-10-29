@@ -284,7 +284,7 @@ function LivesRow({ lives }) {
   )
 }
 
-function CyberPacman({ onScore }) {
+function CyberPacman({ onScore, onStateChange }) {
   const [game, setGame] = useState(() => ({
     ...createFreshState(readHighScore('cyber-pacman')),
     status: 'idle',
@@ -306,6 +306,10 @@ function CyberPacman({ onScore }) {
       onScore?.(score)
     }
   }, [score, onScore])
+
+  useEffect(() => {
+    onStateChange?.({ status, score, level: game.level })
+  }, [status, score, game.level, onStateChange])
 
   useEffect(() => {
     if (highScore > lastSavedScoreRef.current) {
