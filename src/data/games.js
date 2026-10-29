@@ -1,53 +1,46 @@
-// Catálogo ficticio de juegos (datos de prueba) para la HU-3.
+// Catálogo ficticio de juegos (datos de prueba) para la sala GameWeb.
+// Un juego por cada categoría del sistema: Arcade, Acción, Puzzle y Estrategia.
 export const GAME_CATEGORIES = ['Todos', 'Arcade', 'Acción', 'Puzzle', 'Estrategia']
 
 export const GAMES = [
   {
-    id: 'retro-runner',
-    name: 'Retro Runner',
+    id: 'retro-snake',
+    name: 'Retro Snake',
     category: 'Arcade',
     accent: '#00e5ff',
-    description: 'Corre por una autopista infinita de neón y esquiva todo lo que se cruce.',
-    howTo: 'Salta con ESPACIO o TOQUE. Un solo impacto y fin de la partida.',
+    description:
+      "El clásico del gusanito: guíalo con las teclas W, A, S, D o las flechas y consume las manzanas que aparecen al azar en el tablero.",
+    howTo:
+      'Mueve con W A S D o FLECHAS. Cada manzana suma 10 puntos; si chocas contra el borde o tu cuerpo, pierdes. El récord se guarda en localStorage.',
   },
   {
-    id: 'space-shooter',
-    name: 'Space Shooter',
-    category: 'Acción',
-    accent: '#ff2e88',
-    description: 'Defiende el sector ET-7 de oleadas infinitas de drones hostiles.',
-    howTo: 'Muévete con las FLECHAS y dispara con Z o CLIC. Cada 5 oleadas llega un jefe.',
-  },
-  {
-    id: 'cyber-puzzle',
-    name: 'Cyber Puzzle',
+    id: 'neon-tetris',
+    name: 'Neon Tetris',
     category: 'Puzzle',
     accent: '#ffd319',
-    description: 'Enciende la matriz conectando nodos y cerrando el circuito completo.',
-    howTo: 'Arrastra bloques con el MOUSE o desliza con el DEDO hasta unir los nodos.',
+    description:
+      "El clásico de bloques que caen: acomoda las piezas para formar líneas horizontales completas y hacerlas desaparecer.",
+    howTo:
+      'Mueve con FLECHAS, rota con ARRIBA y suelta con ESPACIO. Elimina líneas para sumar puntos que se guardan en localStorage.',
   },
   {
-    id: 'pixel-tactics',
-    name: 'Pixel Tactics',
+    id: 'cyber-pacman',
+    name: 'Cyber Pacman',
+    category: 'Acción',
+    accent: '#ff2e88',
+    description:
+      'Laberinto arcade: evadas a los drones enemigos mientras recolectas los puntos repartidos por el circuito.',
+    howTo:
+      'Muévete con W A S D o FLECHAS. Cada punto suma 10. Tienes 3 vidas; si un dron te alcanza pierdes una. Ten 3 vidas y el marcador se guarda en localStorage.',
+  },
+  {
+    id: 'block-grid-puzzle',
+    name: 'Block Grid Puzzle',
     category: 'Estrategia',
     accent: '#8a2be2',
-    description: 'Comanda una escuadra de 8 bits y conquista la retícula casilla a casilla.',
-    howTo: 'Selecciona una unidad y muévela con CLICK. Combina piezas para atacar en cadena.',
-  },
-  {
-    id: 'neon-drift',
-    name: 'Neon Drift',
-    category: 'Acción',
-    accent: '#00ffa3',
-    description: 'Derrapa en un circuito nocturno donde cada curva roba tu ventana de tiempo.',
-    howTo: 'Gira con IZQUIERDA y DERECHA y suelta el ACELERADOR en curvas de 90°.',
-  },
-  {
-    id: 'high-score-mayhem',
-    name: 'High Score Mayhem',
-    category: 'Arcade',
-    accent: '#ff6ec7',
-    description: 'Maratón rápida de minijuegos clásicos sin pausa ni piedad.',
-    howTo: 'Sobrevive 90 segundos cambiando de juego ante cada campana. Bate tu récord.',
+    description:
+      'Rompecabezas de bloques laterales: coloca piezas generadas al azar en la retícula y completa líneas para liberar espacio.',
+    howTo:
+      'Elige una pieza y haz clic en una celda para colocarla. Completa filas o columnas para liberarlas y sumar puntos. El marcador se guarda en localStorage.',
   },
 ]
