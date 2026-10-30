@@ -815,7 +815,7 @@ function LoginPage() {
 
   return (
     <main
-      className={`arcade-world theme-${themeId} relative flex min-h-screen flex-col items-center overflow-hidden px-4 py-10`}
+      className={`arcade-world theme-${themeId} relative flex min-h-dvh flex-col items-center gap-5 overflow-x-clip px-3 py-5 sm:gap-7 sm:px-4 sm:py-8 lg:py-10`}
     >
       <div className="arcade-sun" aria-hidden="true" />
       <div className="arcade-glow arcade-glow-pink" aria-hidden="true" />
@@ -823,11 +823,11 @@ function LoginPage() {
       <div className="arcade-scanlines" aria-hidden="true" />
 
       <section
-        className={`arcade-panel relative w-full ${cardWidth} overflow-hidden p-6 transition-[max-width] duration-300 sm:p-10`}
+        className={`arcade-panel relative w-full ${cardWidth} overflow-hidden p-4 transition-[max-width] duration-300 sm:p-7 lg:p-10`}
       >
-        <header className="mb-7 text-center">
-          <div className="arcade-logo mx-auto mb-4" aria-hidden="true">
-            <Gamepad2 className="h-9 w-9" />
+        <header className="mb-5 text-center sm:mb-7">
+          <div className="arcade-logo mx-auto mb-3 sm:mb-4" aria-hidden="true">
+            <Gamepad2 className="h-7 w-7 sm:h-9 sm:w-9" />
           </div>
           <ThemeSelector />
           <h1 className="arcade-title mt-3">{heading.title}</h1>
