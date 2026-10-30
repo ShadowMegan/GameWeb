@@ -73,14 +73,6 @@ function storeFilter(key, value) {
   }
 }
 
-function _unusedRemoveReal(user) {
-  const parts = (user.name || user.username || '?').split(/\s+/).filter(Boolean)
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase()
-  }
-  return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-}
-
 function GameCard({ game, highScore, onPlay }) {
   const Icon = CATEGORY_ICONS[game.category] ?? Gamepad2
 

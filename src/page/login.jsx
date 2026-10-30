@@ -75,6 +75,9 @@ const MOCK_USERS = {
   },
 }
 
+const ADMIN_IDENTIFIERS = ['admin', '99999999']
+const ADMIN_PASSWORD = 'admin'
+const EMPTY_ADMIN_FORM = { identifier: '', password: '' }
 const EMPTY_LOGIN_FORM = { identifier: '', password: '' }
 const EMPTY_REGISTER_FORM = {
   name: '',
@@ -309,15 +312,6 @@ async function hashPassword(password, salt) {
     .join('')
 }
 
-function _unusedRemove(user) {
-  const source = (user.username || user.name || '?').trim()
-  const parts = source.split(/\s+/).filter(Boolean)
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase()
-  }
-  return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-}
-
 function FormMessage({ status }) {
   if (!status) {
     return null
@@ -415,6 +409,11 @@ function LoginPage() {
   const [loginBusy, setLoginBusy] = useState(false)
   const [showLoginPassword, setShowLoginPassword] = useState(false)
 
+  const [adminForm, setAdminForm] = useState(EMPTY_ADMIN_FORM)
+  const [adminErrors, setAdminErrors] = useState({})
+  const [adminMessage, setAdminMessage] = useState(null)
+  const [showAdminPassword, setShowAdminPassword] = useState(false)
+
   const [registerForm, setRegisterForm] = useState(EMPTY_REGISTER_FORM)
   const [registerErrors, setRegisterErrors] = useState({})
   const [registerStatus, setRegisterStatus] = useState(null)
@@ -460,6 +459,75 @@ function LoginPage() {
     setLoginMessage(null)
   }
 
+  function openAdminLogin() {
+    setAdminForm(EMPTY_ADMIN_FORM)
+    setAdminErrors({})
+    setAdminMessage(null)
+    setShowAdminPassword(false)
+    switchView('admin-login')
+  }
+
+  function handleAdminChange(event) {
+    const { name, value } = event.target
+
+    setAdminForm((previous) => ({ ...previous, [name]: value }))
+    setAdminErrors((previous) => ({ ...previous, [name]: '' }))
+    setAdminMessage(null)
+  }
+
+  function handleAdminSubmit(event) {
+    event.preventDefault()
+
+    const identifier = adminForm.identifier.trim()
+    const password = adminForm.password
+    const errors = {}
+
+    if (!identifier) {
+      errors.identifier =
+        'El DNI o usuario de administrador es obligatorio.'
+    }
+    if (!password) {
+      errors.password = 'La contraseña de administrador es obligatoria.'
+    }
+
+    setAdminErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      setAdminMessage({
+        type: 'error',
+        message:
+          'Completa tu DNI o usuario y tu contraseña de administrador para continuar.',
+      })
+      return
+    }
+
+    const identifierValid = ADMIN_IDENTIFIERS.includes(identifier.toLowerCase())
+    const passwordValid = password === ADMIN_PASSWORD
+
+    if (!identifierValid || !passwordValid) {
+      setAdminErrors({
+        identifier: identifierValid
+          ? ''
+          : 'El DNI o usuario de administrador es incorrecto.',
+        password: passwordValid
+          ? ''
+          : 'La contraseña de administrador es incorrecta.',
+      })
+      setAdminMessage({
+        type: 'error',
+        message: 'Credenciales de administrador incorrectas. Acceso denegado.',
+      })
+      return
+    }
+
+    setIsAdmin(true)
+    setSessionDni('admin')
+    setAdminForm(EMPTY_ADMIN_FORM)
+    setAdminErrors({})
+    setAdminMessage(null)
+    setLoginMessage(null)
+    setView('catalog')
+  }
+
   function handleRegisterChange(event) {
     const { name, value } = event.target
     let nextValue = value
@@ -485,16 +553,9 @@ function LoginPage() {
 
     const errors = {}
     const identifier = loginForm.identifier.trim()
-    const isAdminAttempt = identifier === 'admin' || identifier === '99999999'
-    const adminCredentialsValid =
-      isAdminAttempt && loginForm.password === 'admin'
 
     if (!identifier) {
       errors.identifier = 'El DNI o correo electrónico es obligatorio.'
-    } else if (isAdminAttempt) {
-      if (!adminCredentialsValid) {
-        errors.identifier = 'Las credenciales de administrador son incorrectas.'
-      }
     } else if (identifier.includes('@')) {
       const emailError = validateEmail(identifier)
       if (emailError) {
@@ -509,9 +570,6 @@ function LoginPage() {
     if (!loginForm.password) {
       errors.password = 'La contraseña es obligatoria.'
     }
-    if (isAdminAttempt && !adminCredentialsValid) {
-      errors.password = 'La contraseña de administrador es incorrecta.'
-    }
 
     setLoginErrors(errors)
     if (Object.keys(errors).length > 0) {
@@ -519,16 +577,6 @@ function LoginPage() {
         type: 'error',
         message: 'Revisa los campos marcados e inténtalo nuevamente.',
       })
-      return
-    }
-
-    if ((identifier === 'admin' || identifier === '99999999') && loginForm.password === 'admin') {
-      const adminUser = { username: 'Admin', dni: '99999999', email: 'admin@gameweb.com', isAdmin: true, role: 'admin' }
-      setIsAdmin(true)
-      setSessionDni('admin')
-      setLoginMessage(null)
-      setLoginErrors({})
-      setView('catalog')
       return
     }
 
@@ -559,8 +607,7 @@ function LoginPage() {
         return
       }
 
-      const isAdminUser = identifier === 'admin' || identifier === '99999999'
-      setIsAdmin(isAdminUser)
+      setIsAdmin(false)
       setSessionDni(user.dni)
       setProfileForm({
         username: user.username,
@@ -709,6 +756,11 @@ function LoginPage() {
 
   function handleLogout() {
     setSessionDni('')
+    setIsAdmin(false)
+    setAdminForm(EMPTY_ADMIN_FORM)
+    setAdminErrors({})
+    setAdminMessage(null)
+    setShowAdminPassword(false)
     setLoginForm({
       identifier: sessionUser ? sessionUser.dni : '',
       password: '',
@@ -724,6 +776,11 @@ function LoginPage() {
       title: 'Inicia sesión en GameWeb',
       subtitle:
         'Accede con tu DNI o correo electrónico y tu contraseña para gestionar tu perfil.',
+    },
+    'admin-login': {
+      title: 'Acceso administrador',
+      subtitle:
+        'Ingresa manualmente tus credenciales de administrador. Por seguridad, los campos nunca se rellenan automáticamente.',
     },
     register: {
       title: 'Crea tu perfil de jugador',
@@ -855,11 +912,7 @@ function LoginPage() {
               <button
                 type="button"
                 className="arcade-btn arcade-btn-secondary arcade-btn-sm"
-                onClick={() => {
-                  setLoginForm({ identifier: 'admin', password: 'admin' })
-                  setLoginErrors({})
-                  setLoginMessage(null)
-                }}
+                onClick={openAdminLogin}
               >
                 Acceso Administrador
               </button>
@@ -879,6 +932,75 @@ function LoginPage() {
             <p className="arcade-hint text-center">
               Cuenta de prueba: DNI 12345678 / jugador.test@gmail.com ·
               contraseña <strong>Arcade2024</strong>
+            </p>
+          </form>
+        )}
+
+        {view === 'admin-login' && (
+          <form
+            key="admin-login"
+            className="animate-fade-slide space-y-5"
+            onSubmit={handleAdminSubmit}
+            noValidate
+            autoComplete="off"
+          >
+            <div>
+              <label htmlFor="admin-identifier" className={labelClass}>
+                DNI o usuario de administrador
+              </label>
+              <input
+                id="admin-identifier"
+                name="identifier"
+                type="text"
+                autoComplete="off"
+                value={adminForm.identifier}
+                onChange={handleAdminChange}
+                placeholder="Escribe tu DNI o usuario"
+                aria-invalid={Boolean(adminErrors.identifier)}
+                aria-describedby={
+                  adminErrors.identifier ? 'admin-identifier-error' : undefined
+                }
+                className={`${inputBase} ${inputState(
+                  Boolean(adminErrors.identifier),
+                )}`}
+              />
+              {adminErrors.identifier && (
+                <p id="admin-identifier-error" className={errorText}>
+                  {adminErrors.identifier}
+                </p>
+              )}
+            </div>
+
+            <PasswordField
+              id="admin-password"
+              name="password"
+              label="Contraseña de administrador"
+              value={adminForm.password}
+              onChange={handleAdminChange}
+              error={adminErrors.password}
+              visible={showAdminPassword}
+              onToggle={() => setShowAdminPassword((value) => !value)}
+              autoComplete="off"
+              placeholder="Escribe tu contraseña"
+            />
+
+            <FormMessage status={adminMessage} />
+
+            <button
+              type="submit"
+              className="arcade-btn arcade-btn-primary w-full px-4 py-3"
+            >
+              Ingresar como administrador
+            </button>
+
+            <p className="arcade-hint text-center">
+              <button
+                type="button"
+                onClick={() => switchView('login')}
+                className="arcade-link"
+              >
+                Volver al inicio de sesión
+              </button>
             </p>
           </form>
         )}
@@ -1446,9 +1568,9 @@ function LoginPage() {
                 <Users className="h-5 w-5 text-[#00e5ff]" aria-hidden="true" />
                 Panel de Administrador
               </h2>
-              <button type="button" onClick={() => { setIsAdmin(false); setView('catalog'); setSessionDni('12345678'); }} className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-2">
+              <button type="button" onClick={handleLogout} className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-2">
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Volver al catálogo
+                Cerrar sesión
               </button>
             </header>
             <div className="overflow-x-auto">
