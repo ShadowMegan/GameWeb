@@ -21,7 +21,7 @@ import { useTheme } from '../context/theme.js'
 import { containsBadWords, getBadWordsErrorMessage } from '../lib/badWords.js'
 import { AVATAR_ICONS, NEON_COLORS } from '../lib/profile.js'
 import { GAMES } from '../data/games.js'
-import { readHighScore } from '../lib/scores.js'
+import { readHighScore, readPlayedGames } from '../lib/scores.js'
 
 const USERS_KEY = 'gameweb_users'
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
@@ -433,6 +433,11 @@ function LoginPage() {
   const [isAdmin, setIsAdmin] = useState(false)
   const successTimer = useRef(null)
   const sessionUser = sessionDni ? users[sessionDni] : null
+  const sessionPlayedGames = sessionUser
+    ? GAMES.filter((game) =>
+        readPlayedGames(sessionUser.dni).includes(game.id),
+      )
+    : []
 
   useEffect(() => {
     return () => {
@@ -1342,6 +1347,48 @@ function LoginPage() {
 
             <section
               className="arcade-card p-5"
+              aria-labelledby="profile-stats-title"
+            >
+              <h2
+                id="profile-stats-title"
+                className="arcade-profile-name mb-4 flex items-center gap-2"
+              >
+                <Trophy className="h-5 w-5 text-[#ffd319]" aria-hidden="true" />
+                Tus récords y juegos jugados
+              </h2>
+              {sessionPlayedGames.length > 0 ? (
+                <ul className="grid gap-3 sm:grid-cols-2">
+                  {sessionPlayedGames.map((game) => {
+                    const score = readHighScore(sessionUser.dni, game.id)
+                    return (
+                      <li
+                        key={game.id}
+                        className="arcade-subcard flex items-center justify-between gap-3 p-3"
+                      >
+                        <span className="arcade-meta-value truncate">
+                          {game.name}
+                        </span>
+                        <span className="arcade-table-score shrink-0">
+                          <Trophy
+                            className="h-3.5 w-3.5 text-[#ffd319]"
+                            aria-hidden="true"
+                          />
+                          {score > 0 ? `${score} pts` : 'Sin récord'}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              ) : (
+                <p className="arcade-hint">
+                  Aún no has jugado ningún juego. Tus récords y juegos jugados
+                  aparecerán aquí y serán solo tuyos.
+                </p>
+              )}
+            </section>
+
+            <section
+              className="arcade-card p-5"
               aria-labelledby="profile-avatar-title"
             >
               <h2 id="profile-avatar-title" className="arcade-profile-name mb-4 text-center">
@@ -1587,8 +1634,9 @@ function LoginPage() {
                 <tbody>
                   {Object.values(users ?? {}).map((user) => {
                     const isOnline = sessionUser?.dni === user.dni
-                    const highScores = GAMES.map((game) => ({ gameId: game.id, score: readHighScore(game.id) }))
-                    const playedGames = GAMES.filter((game) => readHighScore(game.id) > 0)
+                    const highScores = GAMES.map((game) => ({ gameId: game.id, score: readHighScore(user.dni, game.id) }))
+                    const playedGameIds = readPlayedGames(user.dni)
+                    const playedGames = GAMES.filter((game) => playedGameIds.includes(game.id))
                     const totalScore = highScores.reduce((sum, entry) => sum + entry.score, 0)
                     return (
                       <tr key={user.dni}>

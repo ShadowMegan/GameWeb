@@ -232,7 +232,7 @@ function PiecePreview({ piece, selected, onSelect }) {
   )
 }
 
-function BlockGridPuzzle({ onScore, onStateChange }) {
+function BlockGridPuzzle({ userId, onScore, onStateChange }) {
   const [grid, setGrid] = useState({})
   const [hand, setHand] = useState(createHand)
   const [selectedId, setSelectedId] = useState(null)
@@ -241,7 +241,7 @@ function BlockGridPuzzle({ onScore, onStateChange }) {
   const [score, setScore] = useState(0)
   const [status, setStatus] = useState('idle')
   const [highScore, setHighScore] = useState(() =>
-    readHighScore('block-grid-puzzle'),
+    readHighScore(userId, 'block-grid-puzzle'),
   )
   const beatRecord = status === 'over' && score > 0 && score >= highScore
   const flashPendingRef = useRef(false)
@@ -319,7 +319,7 @@ function BlockGridPuzzle({ onScore, onStateChange }) {
 
     if (nextScore > highScore) {
       setHighScore(nextScore)
-      saveHighScore('block-grid-puzzle', nextScore)
+      saveHighScore(userId, 'block-grid-puzzle', nextScore)
     }
 
     if (cleared === 0) {

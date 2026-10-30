@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { GAMES, GAME_CATEGORIES } from '../data/games.js'
 import {
+  markGamePlayed,
   readHighScore,
   readProgress,
   saveHighScore,
@@ -224,6 +225,7 @@ function ExitConfirmDialog({ gameName, score, onSave, onDiscard, onCancel }) {
 }
 
 function GameCatalog({ user, onEditProfile, onLogout }) {
+  const userId = user.dni
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState(() =>
     readStoredFilter(CATEGORY_STORAGE_KEY, GAME_CATEGORIES, 'Todos'),
@@ -241,7 +243,7 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
   const [exitPromptOpen, setExitPromptOpen] = useState(false)
   const [pendingExitAction, setPendingExitAction] = useState('catalog')
   const [highScores, setHighScores] = useState(() =>
-    Object.fromEntries(GAMES.map((game) => [game.id, readHighScore(game.id)])),
+    Object.fromEntries(GAMES.map((game) => [game.id, readHighScore(userId, game.id)])),
   )
 
   useEffect(() => {
@@ -298,7 +300,7 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
     setPendingExitAction('catalog')
     setHighScores(
       Object.fromEntries(
-        GAMES.map((game) => [game.id, readHighScore(game.id)]),
+        GAMES.map((game) => [game.id, readHighScore(userId, game.id)]),
       ),
     )
   }
@@ -310,19 +312,20 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
     }
     setActiveGame(game.id)
     setGameSession({ status: 'idle', score: 0, level: 1 })
-    setSavedProgress(readProgress(game.id))
+    setSavedProgress(readProgress(userId, game.id))
+    markGamePlayed(userId, game.id)
     setExitPromptOpen(false)
   }
 
   function performExit(action, shouldSave) {
     if (shouldSave && activeGame && gameSession.score > 0) {
-      saveProgress(activeGame, {
+      saveProgress(userId, activeGame, {
         score: gameSession.score,
         level: gameSession.level,
         status: gameSession.status,
       })
       if (gameSession.score > (highScores[activeGame] ?? 0)) {
-        saveHighScore(activeGame, gameSession.score)
+        saveHighScore(userId, activeGame, gameSession.score)
       }
     }
     closeGame()
@@ -422,6 +425,7 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
                   <GameStage
                     key={activeGameData.id}
                     game={activeGameData}
+                    userId={userId}
                     onExit={() => requestExit('catalog')}
                     onScore={handleActiveGameScore}
                     onStateChange={handleSessionChange}
