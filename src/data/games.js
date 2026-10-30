@@ -1,5 +1,5 @@
 // Catálogo ficticio de juegos (datos de prueba) para la sala GameWeb.
-// Un juego por cada categoría del sistema: Arcade, Acción, Puzzle y Estrategia.
+// Juegos arcade con estética retro, incluyendo Pong.
 export const GAME_CATEGORIES = ['Todos', 'Arcade', 'Acción', 'Puzzle', 'Estrategia']
 
 export const GAMES = [
@@ -42,5 +42,15 @@ export const GAMES = [
       'Rompecabezas de bloques laterales: coloca piezas generadas al azar en la retícula y completa líneas para liberar espacio.',
     howTo:
       'Elige una pieza y haz clic en una celda para colocarla. Completa filas o columnas para liberarlas y sumar puntos. El marcador se guarda en localStorage.',
+  },
+  {
+    id: 'pong',
+    name: 'Neon Pong',
+    category: 'Arcade',
+    accent: '#39ff14',
+    description:
+      'El duelo de paletas más clásico: devuelve la pelota, supera al bot y llega primero a 7 puntos en una mesa de neón.',
+    howTo:
+      'Mueve tu paleta con W / S, las FLECHAS o arrastrando sobre la mesa. Cada punto se marca cuando la pelota pasa la paleta rival. Gana el primero en llegar a 7; tu puntaje se guarda en localStorage.',
   },
 ]

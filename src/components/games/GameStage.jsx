@@ -8,6 +8,7 @@ const GAME_LOADERS = {
   'neon-tetris': () => import('./NeonTetris.jsx'),
   'cyber-pacman': () => import('./CyberPacman.jsx'),
   'block-grid-puzzle': () => import('./BlockGridPuzzle.jsx'),
+  pong: () => import('./PongGame.jsx'),
 }
 
 function LoadingPanel({ game, progress }) {
