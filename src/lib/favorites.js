@@ -148,6 +148,20 @@ export function subscribeFavorites(userId, listener) {
   }
 }
 
+export function clearUserFavorites(userId) {
+  if (!canUseStorage() || !userId) {
+    return
+  }
+
+  try {
+    window.localStorage.removeItem(favoritesKey(userId))
+  } catch {
+    return
+  }
+
+  notifyFavorites()
+}
+
 export function subscribeFavoriteStats(listener) {
   if (typeof window === 'undefined') {
     return () => {}

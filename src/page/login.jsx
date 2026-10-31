@@ -9,11 +9,13 @@ import {
   Flame,
   Gamepad2,
   Skull,
+  Trash2,
   Trophy,
   Zap,
 } from 'lucide-react'
 import GameCatalog from '../components/catalog.jsx'
 import AdminPanel from '../components/admin/AdminPanel.jsx'
+import ConfirmDialog from '../components/admin/ConfirmDialog.jsx'
 import ThemeSelector from '../components/ThemeSelector.jsx'
 import CommunityComments from '../components/CommunityComments.jsx'
 import ArcadeAvatar from '../components/ArcadeAvatar.jsx'
@@ -21,6 +23,8 @@ import { useTheme } from '../context/theme.js'
 import { containsBadWords, getBadWordsErrorMessage } from '../lib/badWords.js'
 import { AVATAR_ICONS, NEON_COLORS } from '../lib/profile.js'
 import { readCatalog } from '../lib/catalog.js'
+import { purgeUserAccountData } from '../lib/accounts.js'
+import { markUserOffline, markUserOnline } from '../lib/presence.js'
 import { readHighScore, readPlayedGames } from '../lib/scores.js'
 
 const USERS_KEY = 'gameweb_users'
@@ -444,8 +448,10 @@ function LoginPage() {
   const [profileStatus, setProfileStatus] = useState(null)
 
   const [isAdmin, setIsAdmin] = useState(false)
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false)
   const successTimer = useRef(null)
   const sessionUser = isAdmin ? ADMIN_USER : sessionDni ? users[sessionDni] : null
+  const sessionUserId = sessionUser?.dni ?? ''
   const catalog = readCatalog()
   const sessionPlayedGames = sessionUser
     ? catalog.filter((game) =>
@@ -460,6 +466,30 @@ function LoginPage() {
       }
     }
   }, [])
+
+  useEffect(() => {
+    if (!sessionUserId) {
+      return undefined
+    }
+
+    markUserOnline(sessionUserId)
+    const heartbeat = window.setInterval(
+      () => markUserOnline(sessionUserId),
+      15000,
+    )
+
+    function handleUnload() {
+      markUserOffline(sessionUserId)
+    }
+
+    window.addEventListener('beforeunload', handleUnload)
+
+    return () => {
+      window.clearInterval(heartbeat)
+      window.removeEventListener('beforeunload', handleUnload)
+      markUserOffline(sessionUserId)
+    }
+  }, [sessionUserId])
 
   function switchView(nextView) {
     if (nextView === 'admin' && !isAdmin) {
@@ -543,6 +573,7 @@ function LoginPage() {
 
     setIsAdmin(true)
     setSessionDni('admin')
+    setDeleteAccountOpen(false)
     setAdminForm(EMPTY_ADMIN_FORM)
     setAdminErrors({})
     setAdminMessage(null)
@@ -779,6 +810,7 @@ function LoginPage() {
   function handleLogout() {
     setSessionDni('')
     setIsAdmin(false)
+    setDeleteAccountOpen(false)
     setAdminForm(EMPTY_ADMIN_FORM)
     setAdminErrors({})
     setAdminMessage(null)
@@ -791,6 +823,51 @@ function LoginPage() {
     setLoginErrors({})
     setLoginMessage(null)
     setProfileStatus(null)
+    setView('login')
+  }
+
+  function removeAccount(account) {
+    if (!account) {
+      return
+    }
+    const nextUsers = { ...users }
+    delete nextUsers[account.dni]
+    setUsers(nextUsers)
+    saveUsers(nextUsers)
+    purgeUserAccountData(account.dni, account.username)
+  }
+
+  function handleDeleteUser(account) {
+    if (!isAdmin || !account) {
+      return
+    }
+    removeAccount(account)
+  }
+
+  function handleDeleteOwnAccount() {
+    if (!sessionUser || sessionUser.role === 'admin') {
+      return
+    }
+
+    const deletedAccount = sessionUser
+    removeAccount(deletedAccount)
+    setDeleteAccountOpen(false)
+    setSessionDni('')
+    setIsAdmin(false)
+    setProfileForm({
+      username: '',
+      description: '',
+      avatar: 'gamepad',
+      neonColor: 'pink',
+    })
+    setProfileErrors({})
+    setProfileStatus(null)
+    setLoginForm(EMPTY_LOGIN_FORM)
+    setLoginErrors({})
+    setLoginMessage({
+      type: 'info',
+      message: `La cuenta @${deletedAccount.username} se eliminó definitivamente.`,
+    })
     setView('login')
   }
 
@@ -828,13 +905,15 @@ function LoginPage() {
 
   const heading = headings[view] || headings.login
   const cardWidth =
-    view === 'catalog' || view === 'admin'
-      ? 'max-w-5xl'
-      : view === 'register'
-        ? 'max-w-xl'
-        : view === 'profile'
-          ? 'max-w-2xl'
-          : 'max-w-md'
+    view === 'catalog'
+      ? 'max-w-[1700px]'
+      : view === 'admin'
+        ? 'max-w-7xl'
+        : view === 'register'
+          ? 'max-w-xl'
+          : view === 'profile'
+            ? 'max-w-2xl'
+            : 'max-w-md'
 
   return (
     <main
@@ -1316,6 +1395,7 @@ function LoginPage() {
           <AdminPanel
             user={sessionUser}
             users={users}
+            onDeleteUser={handleDeleteUser}
             onBack={() => switchView('catalog')}
           />
         )}
@@ -1605,6 +1685,35 @@ function LoginPage() {
                 Guardar cambios
               </button>
             </form>
+
+            <section
+              className="arcade-card border-[#ff4d6d55] p-5"
+              aria-labelledby="delete-account-title"
+            >
+              <h2
+                id="delete-account-title"
+                className="arcade-profile-name mb-2 flex items-center gap-2"
+              >
+                <Trash2
+                  className="h-5 w-5 text-[#ff4d6d]"
+                  aria-hidden="true"
+                />
+                Zona de peligro
+              </h2>
+              <p className="arcade-hint mb-4">
+                Eliminar tu cuenta borrará de forma definitiva tu perfil,
+                récords, juegos jugados, favoritos y comentarios. No se puede
+                deshacer.
+              </p>
+              <button
+                type="button"
+                onClick={() => setDeleteAccountOpen(true)}
+                className="arcade-btn arcade-btn-sm flex items-center gap-2 border-[#ff4d6d] bg-[#ff4d6d22] text-[#ff8fa3] hover:bg-[#ff4d6d33]"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Eliminar mi cuenta
+              </button>
+            </section>
           </div>
         )}
 
@@ -1638,6 +1747,16 @@ function LoginPage() {
         <div className="w-full max-w-5xl">
           <CommunityComments sessionUser={sessionUser} />
         </div>
+      )}
+
+      {deleteAccountOpen && sessionUser && sessionUser.role !== 'admin' && (
+        <ConfirmDialog
+          title="ELIMINAR MI CUENTA"
+          message={`¿Seguro que quieres eliminar la cuenta @${sessionUser.username}? Se borrarán de forma definitiva tu perfil, récords, juegos jugados, favoritos y comentarios. Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar mi cuenta"
+          onConfirm={handleDeleteOwnAccount}
+          onCancel={() => setDeleteAccountOpen(false)}
+        />
       )}
     </main>
   )

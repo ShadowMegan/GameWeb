@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { GAME_CATEGORIES } from '../data/games.js'
 import {
+  addGame,
   canManageGame,
   deleteGame,
   readCatalog,
@@ -46,6 +47,8 @@ import {
 import GameShell from './games/GameShell.jsx'
 import GameStage from './games/GameStage.jsx'
 import ArcadeAvatar from './ArcadeAvatar.jsx'
+import GameRating from './GameRating.jsx'
+import GameReviews from './GameReviews.jsx'
 import ConfirmDialog from './admin/ConfirmDialog.jsx'
 import GameFormModal from './admin/GameFormModal.jsx'
 
@@ -168,6 +171,8 @@ function GameCard({
 
       <p className="arcade-meta-label mb-1">Cómo se juega</p>
       <p className="mb-4 text-sm leading-relaxed text-[#b9f7ff]">{game.howTo}</p>
+
+      <GameRating gameId={game.id} />
 
       {canManage && (
         <div className="mb-3 flex flex-wrap gap-2">
@@ -308,6 +313,7 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
   const [favorites, setFavorites] = useState(() => readFavorites(userId))
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [editingGame, setEditingGame] = useState(null)
+  const [createGameOpen, setCreateGameOpen] = useState(false)
   const [catalogStatus, setCatalogStatus] = useState(null)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState(() =>
@@ -466,6 +472,23 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
     setFavorites(next)
   }
 
+  function handleCreateSubmit(form) {
+    const result = addGame(form, user)
+    if (result.errors) {
+      return result.errors
+    }
+    if (result.error) {
+      setCatalogStatus({ type: 'error', message: result.error })
+      return {}
+    }
+    setCatalogStatus({
+      type: 'success',
+      message: `"${result.game.name}" se publicó en el catálogo.`,
+    })
+    setCreateGameOpen(false)
+    return {}
+  }
+
   function handleEditSubmit(form) {
     if (!editingGame) {
       return {}
@@ -506,7 +529,18 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
   return (
     <div className="animate-fade-slide flex flex-col gap-5">
       <div className="arcade-card flex flex-wrap items-center gap-4 p-4">
-        <ArcadeAvatar user={user} size="sm" />
+        <div className="relative shrink-0">
+          <ArcadeAvatar user={user} size="sm" />
+          <button
+            type="button"
+            onClick={() => setCreateGameOpen(true)}
+            aria-label="Publicar nuevo juego"
+            title="Publicar nuevo juego"
+            className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#07030f] bg-[#ff2e88] text-white shadow-[0_0_12px_rgba(255,46,136,0.9)] transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00e5ff]"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
         <div className="min-w-0">
           <p className="arcade-profile-name truncate">{user.name}</p>
           <p className="arcade-hint truncate">
@@ -613,6 +647,12 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
                     onScore={handleActiveGameScore}
                     onStateChange={handleSessionChange}
                   />
+                  <GameReviews
+                    key={activeGameData.id}
+                    gameId={activeGameData.id}
+                    gameName={activeGameData.name}
+                    user={user}
+                  />
                 </GameShell>
                 {exitPromptOpen && (
                   <ExitConfirmDialog
@@ -694,7 +734,7 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
           </p>
 
           {filteredGames.length > 0 ? (
-            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr))]">
               {filteredGames.map((game) => (
                 <GameCard
                   key={game.id}
@@ -719,6 +759,15 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
         </>
       )}
 
+      {createGameOpen && (
+        <GameFormModal
+          game={null}
+          games={games}
+          onSubmit={handleCreateSubmit}
+          onClose={() => setCreateGameOpen(false)}
+        />
+      )}
+
       {editingGame && (
         <GameFormModal
           game={editingGame}
@@ -731,7 +780,7 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
       {deleteTarget && (
         <ConfirmDialog
           title="ELIMINAR ELEMENTO"
-          message={`¿Seguro que quieres eliminar "${deleteTarget.name}" del catálogo? Esta acción no se puede deshacer y también se borrarán sus favoritos.`}
+          message={`¿Seguro que quieres eliminar "${deleteTarget.name}" del catálogo? Esta acción no se puede deshacer y también se borrarán sus favoritos, reseñas y valoraciones.`}
           confirmLabel="Eliminar"
           onConfirm={confirmDeleteGame}
           onCancel={() => setDeleteTarget(null)}

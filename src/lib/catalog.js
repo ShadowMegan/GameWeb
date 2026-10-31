@@ -1,4 +1,5 @@
 import { GAMES, GAME_CATEGORIES } from '../data/games.js'
+import { deleteGameReviews } from './reviews.js'
 
 export const CATALOG_STORAGE_KEY = 'gameweb:catalog:games'
 export const CATALOG_EVENT = 'gameweb:catalog:updated'
@@ -223,8 +224,8 @@ function buildGamePayload(form) {
 }
 
 export function addGame(form, author) {
-  if (!author || author.role !== 'admin') {
-    return { error: 'Solo un administrador puede agregar elementos al catálogo.' }
+  if (!author || !author.dni || !author.username) {
+    return { error: 'Debes iniciar sesión para publicar un juego.' }
   }
 
   const games = readCatalog()
@@ -243,7 +244,7 @@ export function addGame(form, author) {
       name: author.name,
       username: author.username,
       dni: author.dni,
-      role: author.role,
+      role: author.role || 'user',
     },
     createdAt: now,
     updatedAt: now,
@@ -298,5 +299,6 @@ export function deleteGame(gameId, actor) {
   }
 
   persistCatalog(games.filter((game) => game.id !== gameId))
+  deleteGameReviews(gameId)
   return { game: target }
 }

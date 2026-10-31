@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeft,
+  Brain,
   Check,
   CircleAlert,
   Gamepad2,
   Pencil,
   Plus,
+  Puzzle,
+  Rocket,
   ShieldCheck,
   Star,
   Trash2,
   Trophy,
   Users,
+  Wifi,
+  WifiOff,
 } from 'lucide-react'
 import {
   addGame,
@@ -24,9 +29,35 @@ import {
   readFavoriteStats,
   subscribeFavoriteStats,
 } from '../../lib/favorites.js'
+import {
+  isUserOnline,
+  readPresence,
+  subscribePresence,
+} from '../../lib/presence.js'
 import { readHighScore, readPlayedGames } from '../../lib/scores.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import GameFormModal from './GameFormModal.jsx'
+
+const CATEGORY_ICONS = {
+  Arcade: Gamepad2,
+  Acción: Rocket,
+  Puzzle: Puzzle,
+  Estrategia: Brain,
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return 'Fecha no registrada'
+  }
+  try {
+    return new Intl.DateTimeFormat('es-AR', {
+      dateStyle: 'short',
+      timeStyle: 'medium',
+    }).format(new Date(value))
+  } catch {
+    return value
+  }
+}
 
 function AdminStatus({ status }) {
   if (!status) {
@@ -52,17 +83,20 @@ function AdminStatus({ status }) {
   )
 }
 
-function AdminPanel({ user, users = {}, onBack }) {
+function AdminPanel({ user, users = {}, onBack, onDeleteUser }) {
   const [games, setGames] = useState(() => readCatalog())
   const [favoriteStats, setFavoriteStats] = useState(() => readFavoriteStats())
+  const [presence, setPresence] = useState(() => readPresence())
   const [formOpen, setFormOpen] = useState(false)
   const [editingGame, setEditingGame] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteUserTarget, setDeleteUserTarget] = useState(null)
   const [clearFavoritesTarget, setClearFavoritesTarget] = useState(null)
   const [status, setStatus] = useState(null)
 
   useEffect(() => subscribeCatalog(setGames), [])
   useEffect(() => subscribeFavoriteStats(setFavoriteStats), [])
+  useEffect(() => subscribePresence(setPresence), [])
 
   const favoriteTotal = useMemo(
     () => Object.values(favoriteStats).reduce((total, count) => total + count, 0),
@@ -158,6 +192,18 @@ function AdminPanel({ user, users = {}, onBack }) {
     setClearFavoritesTarget(null)
   }
 
+  function confirmDeleteUser() {
+    if (!deleteUserTarget) {
+      return
+    }
+    onDeleteUser?.(deleteUserTarget)
+    setStatus({
+      type: 'success',
+      message: `La cuenta @${deleteUserTarget.username} se eliminó definitivamente.`,
+    })
+    setDeleteUserTarget(null)
+  }
+
   return (
     <div className="animate-fade-slide flex flex-col gap-5">
       <div className="arcade-card flex flex-wrap items-center gap-4 p-4">
@@ -185,7 +231,7 @@ function AdminPanel({ user, users = {}, onBack }) {
             onClick={openCreateForm}
             className="arcade-btn arcade-btn-primary arcade-btn-sm flex items-center gap-2"
           >
-            <Plus className="h-4 w-4" aria-hidden="true" /> Agregar elemento
+            <Plus className="h-4 w-4" aria-hidden="true" /> Agregar juego
           </button>
         </div>
       </div>
@@ -220,27 +266,37 @@ function AdminPanel({ user, users = {}, onBack }) {
             className="arcade-profile-name flex items-center gap-2"
           >
             <Gamepad2 className="h-5 w-5 text-[#00e5ff]" aria-hidden="true" />
-            Elementos del catálogo
+            Catálogo visual de juegos
           </h2>
-          <span className="arcade-hint">{games.length} registro(s)</span>
+          <span className="arcade-hint">{games.length} juego(s) activo(s)</span>
         </header>
 
-        <div className="overflow-x-auto">
-          <table className="arcade-table w-full">
-            <thead>
-              <tr>
-                <th scope="col">Elemento</th>
-                <th scope="col">Autor</th>
-                <th scope="col">Origen</th>
-                <th scope="col">Favoritos</th>
-                <th scope="col">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {games.map((game) => (
-                <tr key={game.id}>
-                  <td className="arcade-table-cell">
-                    <p className="font-bold text-white">{game.name}</p>
+        <ul className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))]">
+          {games.map((game) => {
+            const Icon = CATEGORY_ICONS[game.category] ?? Gamepad2
+            return (
+              <li
+                key={game.id}
+                className="arcade-subcard flex flex-col gap-3 p-3"
+                style={{ borderColor: `${game.accent}55` }}
+              >
+                <div className="flex items-start gap-3">
+                  <span
+                    className="inline-flex h-12 w-12 shrink-0 items-center justify-center"
+                    style={{
+                      border: `2px solid ${game.accent}`,
+                      background: `${game.accent}1f`,
+                      boxShadow: `0 0 12px ${game.accent}66`,
+                    }}
+                  >
+                    <Icon
+                      className="h-6 w-6"
+                      style={{ color: game.accent }}
+                      aria-hidden="true"
+                    />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-bold text-white">{game.name}</p>
                     <span
                       className="arcade-chip mt-1"
                       style={{
@@ -250,42 +306,61 @@ function AdminPanel({ user, users = {}, onBack }) {
                     >
                       {game.category}
                     </span>
-                  </td>
-                  <td className="arcade-table-cell">
-                    <p className="text-white">{game.author?.name}</p>
-                    <p className="arcade-hint">@{game.author?.username}</p>
-                  </td>
-                  <td className="arcade-table-cell">
+                  </div>
+                  <span className="arcade-hint shrink-0">
                     {game.builtIn ? 'Base' : 'Comunidad'}
-                  </td>
-                  <td className="arcade-table-cell">
-                    {favoriteStats[game.id] || 0}
-                  </td>
-                  <td className="arcade-table-cell">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openEditForm(game)}
-                        className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-1.5"
-                      >
-                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(game)}
-                        className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-1.5"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                        Eliminar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </span>
+                </div>
+
+                <p className="line-clamp-2 text-sm text-[#d9c8ff]">
+                  {game.description}
+                </p>
+
+                <div className="space-y-1">
+                  <p className="arcade-hint">
+                    Autor:{' '}
+                    <span className="text-white">{game.author?.name}</span> ·
+                    @{game.author?.username}
+                  </p>
+                  <p className="arcade-hint">
+                    Publicado: {formatDateTime(game.createdAt)}
+                  </p>
+                  {game.updatedAt && game.updatedAt !== game.createdAt && (
+                    <p className="arcade-hint">
+                      Actualizado: {formatDateTime(game.updatedAt)}
+                    </p>
+                  )}
+                  <p className="arcade-hint flex items-center gap-1">
+                    <Star
+                      className="h-3.5 w-3.5 text-[#ffd319]"
+                      aria-hidden="true"
+                    />
+                    {favoriteStats[game.id] || 0} favorito(s)
+                  </p>
+                </div>
+
+                <div className="mt-auto flex flex-wrap gap-2 border-t border-[#8a2be255] pt-3">
+                  <button
+                    type="button"
+                    onClick={() => openEditForm(game)}
+                    className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-1.5"
+                  >
+                    <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(game)}
+                    className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-1.5"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    Dar de baja
+                  </button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
       </section>
 
       <section
@@ -350,9 +425,11 @@ function AdminPanel({ user, users = {}, onBack }) {
             <thead>
               <tr>
                 <th scope="col">Usuario</th>
-                <th scope="col">DNI</th>
-                <th scope="col">Récords</th>
+                <th scope="col">DNI / ID</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Récords y puntos</th>
                 <th scope="col">Juegos jugados</th>
+                <th scope="col">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -366,6 +443,7 @@ function AdminPanel({ user, users = {}, onBack }) {
                 const playedGames = games.filter((game) =>
                   playedIds.includes(game.id),
                 )
+                const online = isUserOnline(account.dni, presence)
                 return (
                   <tr key={account.dni}>
                     <td className="arcade-table-cell">
@@ -373,6 +451,25 @@ function AdminPanel({ user, users = {}, onBack }) {
                       <p className="arcade-hint">@{account.username}</p>
                     </td>
                     <td className="arcade-table-cell">{account.dni}</td>
+                    <td className="arcade-table-cell">
+                      <span
+                        className={`arcade-table-status ${
+                          online
+                            ? 'arcade-table-status-online'
+                            : 'arcade-table-status-offline'
+                        }`}
+                      >
+                        {online ? (
+                          <Wifi className="h-3.5 w-3.5" aria-hidden="true" />
+                        ) : (
+                          <WifiOff
+                            className="h-3.5 w-3.5"
+                            aria-hidden="true"
+                          />
+                        )}
+                        {online ? 'Online' : 'Offline'}
+                      </span>
+                    </td>
                     <td className="arcade-table-cell">
                       {totalScore > 0 ? (
                         <span className="arcade-table-score">
@@ -398,6 +495,16 @@ function AdminPanel({ user, users = {}, onBack }) {
                           ))
                         : 'Ninguno'}
                     </td>
+                    <td className="arcade-table-cell">
+                      <button
+                        type="button"
+                        onClick={() => setDeleteUserTarget(account)}
+                        className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-1.5"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        Eliminar cuenta
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
@@ -419,7 +526,7 @@ function AdminPanel({ user, users = {}, onBack }) {
       {deleteTarget && (
         <ConfirmDialog
           title="ELIMINAR ELEMENTO"
-          message={`¿Seguro que quieres eliminar "${deleteTarget.name}" del catálogo? Esta acción no se puede deshacer y también se borrarán sus favoritos.`}
+          message={`¿Seguro que quieres eliminar "${deleteTarget.name}" del catálogo? Esta acción no se puede deshacer y también se borrarán sus favoritos, reseñas y valoraciones.`}
           confirmLabel="Eliminar"
           onConfirm={confirmDelete}
           onCancel={() => setDeleteTarget(null)}
@@ -434,6 +541,16 @@ function AdminPanel({ user, users = {}, onBack }) {
           tone="warning"
           onConfirm={confirmClearFavorites}
           onCancel={() => setClearFavoritesTarget(null)}
+        />
+      )}
+
+      {deleteUserTarget && (
+        <ConfirmDialog
+          title="ELIMINAR CUENTA DE USUARIO"
+          message={`¿Seguro que quieres eliminar la cuenta @${deleteUserTarget.username} (${deleteUserTarget.name})? Se borrarán su perfil, récords, juegos jugados, favoritos y comentarios. Esta acción es definitiva.`}
+          confirmLabel="Eliminar cuenta"
+          onConfirm={confirmDeleteUser}
+          onCancel={() => setDeleteUserTarget(null)}
         />
       )}
     </div>

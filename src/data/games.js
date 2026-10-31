@@ -11,7 +11,7 @@ export const GAMES = [
     description:
       "El clásico del gusanito: guíalo con las teclas W, A, S, D o las flechas y consume las manzanas que aparecen al azar en el tablero.",
     howTo:
-      'Mueve con W A S D o FLECHAS. Cada manzana suma 10 puntos; si chocas contra el borde o tu cuerpo, pierdes. El récord se guarda en localStorage.',
+      'Mueve con W A S D o FLECHAS. Cada manzana suma 10 puntos; si chocas contra el borde o tu cuerpo, pierdes. Tu mejor marca queda registrada en tu perfil.',
   },
   {
     id: 'neon-tetris',
@@ -21,7 +21,7 @@ export const GAMES = [
     description:
       "El clásico de bloques que caen: acomoda las piezas para formar líneas horizontales completas y hacerlas desaparecer.",
     howTo:
-      'Mueve con FLECHAS, rota con ARRIBA y suelta con ESPACIO. Elimina líneas para sumar puntos que se guardan en localStorage.',
+      'Mueve con FLECHAS, rota con ARRIBA y suelta con ESPACIO. Elimina líneas para sumar puntos que se registran en tu perfil.',
   },
   {
     id: 'cyber-pacman',
@@ -31,7 +31,7 @@ export const GAMES = [
     description:
       'Laberinto arcade: evadas a los drones enemigos mientras recolectas los puntos repartidos por el circuito.',
     howTo:
-      'Muévete con W A S D o FLECHAS. Cada punto suma 10. Tienes 3 vidas; si un dron te alcanza pierdes una. Ten 3 vidas y el marcador se guarda en localStorage.',
+      'Muévete con W A S D o FLECHAS. Cada punto suma 10. Tienes 3 vidas; si un dron te alcanza pierdes una. Tu marcador queda registrado en tu perfil.',
   },
   {
     id: 'block-grid-puzzle',
@@ -41,7 +41,7 @@ export const GAMES = [
     description:
       'Rompecabezas de bloques laterales: coloca piezas generadas al azar en la retícula y completa líneas para liberar espacio.',
     howTo:
-      'Elige una pieza y haz clic en una celda para colocarla. Completa filas o columnas para liberarlas y sumar puntos. El marcador se guarda en localStorage.',
+      'Elige una pieza y haz clic en una celda para colocarla. Completa filas o columnas para liberarlas y sumar puntos. Tu marcador queda registrado en tu perfil.',
   },
   {
     id: 'pong',
@@ -51,6 +51,6 @@ export const GAMES = [
     description:
       'El duelo de paletas más clásico: devuelve la pelota, supera al bot y llega primero a 7 puntos en una mesa de neón.',
     howTo:
-      'Mueve tu paleta con W / S, las FLECHAS o arrastrando sobre la mesa. Cada punto se marca cuando la pelota pasa la paleta rival. Gana el primero en llegar a 7; tu puntaje se guarda en localStorage.',
+      'Mueve tu paleta con W / S, las FLECHAS o arrastrando sobre la mesa. Cada punto se marca cuando la pelota pasa la paleta rival. Gana el primero en llegar a 7; tu puntaje queda registrado en tu perfil.',
   },
 ]
