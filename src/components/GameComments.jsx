@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getGlobalComments, saveGameReview } from '../lib/ratings';
 
 export default function GameComments({ gameId, currentUser }) {
-  const [comments, setComments] = useState([]);
+  // Inicializamos el estado directamente para evitar llamadas síncronas en el efecto
+  const [comments, setComments] = useState(() => getGlobalComments(gameId));
   const [text, setText] = useState('');
   const [stars, setStars] = useState(5);
   const [submitted, setSubmitted] = useState(false);
@@ -12,7 +13,7 @@ export default function GameComments({ gameId, currentUser }) {
   }, [gameId]);
 
   useEffect(() => {
-    loadData();
+    // El efecto solo registra el listener para sincronización entre pestañas
     window.addEventListener('storage', loadData);
     return () => window.removeEventListener('storage', loadData);
   }, [loadData]);
