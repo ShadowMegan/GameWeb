@@ -3,19 +3,39 @@ import {
   AlertCircle,
   ArrowUpDown,
   Brain,
+  Check,
   Eraser,
   Filter,
   Gamepad2,
+  Heart,
   LogOut,
+  Pencil,
+  Plus,
   Puzzle,
   Rocket,
   Save,
   Search,
+  ShieldCheck,
+  Trash2,
   Trophy,
   User,
+  UserRound,
   X,
 } from 'lucide-react'
-import { GAMES, GAME_CATEGORIES } from '../data/games.js'
+import { GAME_CATEGORIES } from '../data/games.js'
+import {
+  canManageGame,
+  deleteGame,
+  readCatalog,
+  subscribeCatalog,
+  updateGame,
+} from '../lib/catalog.js'
+import {
+  clearGameFavorites,
+  readFavorites,
+  subscribeFavorites,
+  toggleFavorite,
+} from '../lib/favorites.js'
 import {
   markGamePlayed,
   readHighScore,
@@ -26,6 +46,8 @@ import {
 import GameShell from './games/GameShell.jsx'
 import GameStage from './games/GameStage.jsx'
 import ArcadeAvatar from './ArcadeAvatar.jsx'
+import ConfirmDialog from './admin/ConfirmDialog.jsx'
+import GameFormModal from './admin/GameFormModal.jsx'
 
 const searchInputClass = 'arcade-input w-full pl-12 pr-4 py-3'
 const chipBase = 'arcade-chip'
@@ -74,7 +96,16 @@ function storeFilter(key, value) {
   }
 }
 
-function GameCard({ game, highScore, onPlay }) {
+function GameCard({
+  game,
+  highScore,
+  onPlay,
+  isFavorite,
+  onToggleFavorite,
+  canManage,
+  onEdit,
+  onDelete,
+}) {
   const Icon = CATEGORY_ICONS[game.category] ?? Gamepad2
 
   return (
@@ -93,15 +124,43 @@ function GameCard({ game, highScore, onPlay }) {
         >
           <Icon className="h-6 w-6" style={{ color: game.accent }} aria-hidden="true" />
         </span>
-        <span
-          className={chipBase}
-          style={{ borderColor: `${game.accent}55`, color: game.accent }}
-        >
-          {game.category}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className={chipBase}
+            style={{ borderColor: `${game.accent}55`, color: game.accent }}
+          >
+            {game.category}
+          </span>
+          <button
+            type="button"
+            onClick={onToggleFavorite}
+            aria-pressed={isFavorite}
+            aria-label={
+              isFavorite
+                ? `Quitar ${game.name} de favoritos`
+                : `Agregar ${game.name} a favoritos`
+            }
+            title={isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+            className="arcade-btn arcade-btn-secondary arcade-btn-sm"
+          >
+            <Heart
+              className="h-4 w-4"
+              style={{ color: isFavorite ? '#ff4d6d' : undefined }}
+              fill={isFavorite ? '#ff4d6d' : 'none'}
+              aria-hidden="true"
+            />
+          </button>
+        </div>
       </div>
 
       <h3 className="arcade-game-title mb-2">{game.name}</h3>
+
+      <p className="arcade-hint mb-3 flex items-center gap-1.5">
+        <UserRound className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        Publicado por{' '}
+        <span className="text-white">{game.author?.name}</span> · @
+        {game.author?.username}
+      </p>
 
       <p className="mb-3 text-sm leading-relaxed text-[#d9c8ff]">
         {game.description}
@@ -109,6 +168,25 @@ function GameCard({ game, highScore, onPlay }) {
 
       <p className="arcade-meta-label mb-1">Cómo se juega</p>
       <p className="mb-4 text-sm leading-relaxed text-[#b9f7ff]">{game.howTo}</p>
+
+      {canManage && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-1.5"
+          >
+            <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Editar
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-1.5"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Eliminar
+          </button>
+        </div>
+      )}
 
       <div className="mt-auto flex flex-col gap-3 border-t border-[#8a2be255] pt-3">
         <p className="arcade-meta-label flex items-center gap-1.5">
@@ -224,8 +302,13 @@ function ExitConfirmDialog({ gameName, score, onSave, onDiscard, onCancel }) {
   )
 }
 
-function GameCatalog({ user, onEditProfile, onLogout }) {
+function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
   const userId = user.dni
+  const [games, setGames] = useState(() => readCatalog())
+  const [favorites, setFavorites] = useState(() => readFavorites(userId))
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [editingGame, setEditingGame] = useState(null)
+  const [catalogStatus, setCatalogStatus] = useState(null)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState(() =>
     readStoredFilter(CATEGORY_STORAGE_KEY, GAME_CATEGORIES, 'Todos'),
@@ -243,8 +326,13 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
   const [exitPromptOpen, setExitPromptOpen] = useState(false)
   const [pendingExitAction, setPendingExitAction] = useState('catalog')
   const [highScores, setHighScores] = useState(() =>
-    Object.fromEntries(GAMES.map((game) => [game.id, readHighScore(userId, game.id)])),
+    Object.fromEntries(
+      readCatalog().map((game) => [game.id, readHighScore(userId, game.id)]),
+    ),
   )
+
+  useEffect(() => subscribeCatalog(setGames), [])
+  useEffect(() => subscribeFavorites(userId, setFavorites), [userId])
 
   useEffect(() => {
     storeFilter(CATEGORY_STORAGE_KEY, category)
@@ -300,13 +388,13 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
     setPendingExitAction('catalog')
     setHighScores(
       Object.fromEntries(
-        GAMES.map((game) => [game.id, readHighScore(userId, game.id)]),
+        games.map((game) => [game.id, readHighScore(userId, game.id)]),
       ),
     )
   }
 
   function openGame(gameId) {
-    const game = GAMES.find((candidate) => candidate.id === gameId)
+    const game = games.find((candidate) => candidate.id === gameId)
     if (!game) {
       return
     }
@@ -347,7 +435,7 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
 
   const filteredGames = useMemo(() => {
     const normalizedQuery = normalizeText(query.trim())
-    const matches = GAMES.filter((game) => {
+    const matches = games.filter((game) => {
       const matchesCategory = category === 'Todos' || game.category === category
       if (!matchesCategory) {
         return false
@@ -365,7 +453,7 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
         ? b.name.localeCompare(a.name, 'es')
         : a.name.localeCompare(b.name, 'es'),
     )
-  }, [query, category, sortOrder])
+  }, [games, query, category, sortOrder])
 
   function resetFilters() {
     setQuery('')
@@ -373,24 +461,77 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
     setSortOrder('az')
   }
 
+  function handleToggleFavorite(gameId) {
+    const next = toggleFavorite(userId, gameId)
+    setFavorites(next)
+  }
+
+  function handleEditSubmit(form) {
+    if (!editingGame) {
+      return {}
+    }
+    const result = updateGame(editingGame.id, form, user)
+    if (result.errors) {
+      return result.errors
+    }
+    if (result.error) {
+      setCatalogStatus({ type: 'error', message: result.error })
+      return {}
+    }
+    setCatalogStatus({
+      type: 'success',
+      message: `"${result.game.name}" se actualizó correctamente.`,
+    })
+    setEditingGame(null)
+    return {}
+  }
+
+  function confirmDeleteGame() {
+    if (!deleteTarget) {
+      return
+    }
+    const result = deleteGame(deleteTarget.id, user)
+    if (result.error) {
+      setCatalogStatus({ type: 'error', message: result.error })
+    } else {
+      clearGameFavorites(deleteTarget.id)
+      setCatalogStatus({
+        type: 'success',
+        message: `"${result.game.name}" se eliminó del catálogo.`,
+      })
+    }
+    setDeleteTarget(null)
+  }
+
   return (
     <div className="animate-fade-slide flex flex-col gap-5">
       <div className="arcade-card flex flex-wrap items-center gap-4 p-4">
-                <ArcadeAvatar user={user} size="sm" />
+        <ArcadeAvatar user={user} size="sm" />
         <div className="min-w-0">
           <p className="arcade-profile-name truncate">{user.name}</p>
           <p className="arcade-hint truncate">
-            @{user.username} · DNI {user.dni}
+            @{user.username} · {isAdmin ? 'Administrador' : `DNI ${user.dni}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-          <button
-            type="button"
-            onClick={() => requestExit('profile')}
-            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-2"
-          >
-            <User className="h-4 w-4" aria-hidden="true" /> Mi perfil
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={onOpenAdmin}
+              className="arcade-btn arcade-btn-primary arcade-btn-sm flex items-center gap-2"
+            >
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Panel admin
+            </button>
+          )}
+          {!isAdmin && (
+            <button
+              type="button"
+              onClick={() => requestExit('profile')}
+              className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-2"
+            >
+              <User className="h-4 w-4" aria-hidden="true" /> Mi perfil
+            </button>
+          )}
           <button
             type="button"
             onClick={() => requestExit('logout')}
@@ -401,9 +542,51 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
         </div>
       </div>
 
+      {catalogStatus && (
+        <div
+          role={catalogStatus.type === 'error' ? 'alert' : 'status'}
+          aria-live="polite"
+          className={`arcade-message ${
+            catalogStatus.type === 'error'
+              ? 'arcade-message-error'
+              : 'arcade-message-success'
+          }`}
+        >
+          {catalogStatus.type === 'error' ? (
+            <AlertCircle
+              className="mt-0.5 h-5 w-5 shrink-0"
+              aria-hidden="true"
+            />
+          ) : (
+            <Check className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+          )}
+          <p>{catalogStatus.message}</p>
+        </div>
+      )}
+
+      {isAdmin && !activeGame && (
+        <div className="arcade-subcard flex flex-wrap items-center gap-3 p-3">
+          <ShieldCheck
+            className="h-5 w-5 shrink-0 text-[#00e5ff]"
+            aria-hidden="true"
+          />
+          <p className="min-w-0 flex-1 text-sm text-[#d9c8ff]">
+            Estás en modo administrador: puedes agregar, editar o eliminar
+            elementos del catálogo.
+          </p>
+          <button
+            type="button"
+            onClick={onOpenAdmin}
+            className="arcade-btn arcade-btn-primary arcade-btn-sm flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" /> Administrar catálogo
+          </button>
+        </div>
+      )}
+
       {activeGame ? (
         (() => {
-          const activeGameData = GAMES.find((game) => game.id === activeGame)
+          const activeGameData = games.find((game) => game.id === activeGame)
           if (!activeGameData) {
             return (
               <EmptyCatalog
@@ -505,7 +688,7 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
           </div>
 
           <p className="arcade-hint" aria-live="polite">
-            {filteredGames.length === GAMES.length
+            {filteredGames.length === games.length
               ? 'Todos los juegos de la sala'
               : `${filteredGames.length} juego(s) encontrados`}
           </p>
@@ -518,6 +701,11 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
                   game={game}
                   highScore={highScores[game.id] ?? 0}
                   onPlay={() => openGame(game.id)}
+                  isFavorite={favorites.includes(game.id)}
+                  onToggleFavorite={() => handleToggleFavorite(game.id)}
+                  canManage={canManageGame(game, user)}
+                  onEdit={() => setEditingGame(game)}
+                  onDelete={() => setDeleteTarget(game)}
                 />
               ))}
             </ul>
@@ -529,6 +717,25 @@ function GameCatalog({ user, onEditProfile, onLogout }) {
             />
           )}
         </>
+      )}
+
+      {editingGame && (
+        <GameFormModal
+          game={editingGame}
+          games={games}
+          onSubmit={handleEditSubmit}
+          onClose={() => setEditingGame(null)}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title="ELIMINAR ELEMENTO"
+          message={`¿Seguro que quieres eliminar "${deleteTarget.name}" del catálogo? Esta acción no se puede deshacer y también se borrarán sus favoritos.`}
+          confirmLabel="Eliminar"
+          onConfirm={confirmDeleteGame}
+          onCancel={() => setDeleteTarget(null)}
+        />
       )}
     </div>
   )

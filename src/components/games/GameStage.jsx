@@ -127,7 +127,10 @@ function GameStage({ game, userId, onExit, onScore, onStateChange }) {
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
-    const loader = GAME_LOADERS[game.id]
+    const loader =
+      game.engine === 'reaction'
+        ? () => import('./ReactionGame.jsx')
+        : GAME_LOADERS[game.id]
     if (!loader) {
       return undefined
     }
@@ -184,7 +187,7 @@ function GameStage({ game, userId, onExit, onScore, onStateChange }) {
         window.clearTimeout(finishTimer)
       }
     }
-  }, [game.id, game.name, attempt])
+  }, [game.id, game.name, game.engine, attempt])
 
   function retry() {
     setPhase('loading')
@@ -194,7 +197,7 @@ function GameStage({ game, userId, onExit, onScore, onStateChange }) {
     setAttempt((current) => current + 1)
   }
 
-  if (!GAME_LOADERS[game.id]) {
+  if (game.engine !== 'reaction' && !GAME_LOADERS[game.id]) {
     return (
       <ErrorPanel
         gameName={game.name}

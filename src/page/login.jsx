@@ -10,17 +10,17 @@ import {
   Gamepad2,
   Skull,
   Trophy,
-  Users,
   Zap,
 } from 'lucide-react'
 import GameCatalog from '../components/catalog.jsx'
+import AdminPanel from '../components/admin/AdminPanel.jsx'
 import ThemeSelector from '../components/ThemeSelector.jsx'
 import CommunityComments from '../components/CommunityComments.jsx'
 import ArcadeAvatar from '../components/ArcadeAvatar.jsx'
 import { useTheme } from '../context/theme.js'
 import { containsBadWords, getBadWordsErrorMessage } from '../lib/badWords.js'
 import { AVATAR_ICONS, NEON_COLORS } from '../lib/profile.js'
-import { GAMES } from '../data/games.js'
+import { readCatalog } from '../lib/catalog.js'
 import { readHighScore, readPlayedGames } from '../lib/scores.js'
 
 const USERS_KEY = 'gameweb_users'
@@ -77,6 +77,19 @@ const MOCK_USERS = {
 
 const ADMIN_IDENTIFIERS = ['admin', '99999999']
 const ADMIN_PASSWORD = 'admin'
+const ADMIN_USER = {
+  dni: 'admin',
+  name: 'Administrador GameWeb',
+  username: 'admin',
+  email: 'admin@gameweb.test',
+  phone: '',
+  gender: 'Prefiero no decirlo',
+  description: 'Cuenta de administración para gestionar el catálogo.',
+  role: 'admin',
+  avatar: 'crown',
+  neonColor: 'yellow',
+  createdAt: '2026-01-01T00:00:00.000Z',
+}
 const EMPTY_ADMIN_FORM = { identifier: '', password: '' }
 const EMPTY_LOGIN_FORM = { identifier: '', password: '' }
 const EMPTY_REGISTER_FORM = {
@@ -432,9 +445,10 @@ function LoginPage() {
 
   const [isAdmin, setIsAdmin] = useState(false)
   const successTimer = useRef(null)
-  const sessionUser = sessionDni ? users[sessionDni] : null
+  const sessionUser = isAdmin ? ADMIN_USER : sessionDni ? users[sessionDni] : null
+  const catalog = readCatalog()
   const sessionPlayedGames = sessionUser
-    ? GAMES.filter((game) =>
+    ? catalog.filter((game) =>
         readPlayedGames(sessionUser.dni).includes(game.id),
       )
     : []
@@ -448,6 +462,9 @@ function LoginPage() {
   }, [])
 
   function switchView(nextView) {
+    if (nextView === 'admin' && !isAdmin) {
+      return
+    }
     if (successTimer.current) {
       window.clearTimeout(successTimer.current)
       successTimer.current = null
@@ -530,7 +547,7 @@ function LoginPage() {
     setAdminErrors({})
     setAdminMessage(null)
     setLoginMessage(null)
-    setView('catalog')
+    setView('admin')
   }
 
   function handleRegisterChange(event) {
@@ -767,7 +784,8 @@ function LoginPage() {
     setAdminMessage(null)
     setShowAdminPassword(false)
     setLoginForm({
-      identifier: sessionUser ? sessionUser.dni : '',
+      identifier:
+        sessionUser && sessionUser.role !== 'admin' ? sessionUser.dni : '',
       password: '',
     })
     setLoginErrors({})
@@ -801,11 +819,16 @@ function LoginPage() {
       subtitle:
         'Explora la sala GameWeb: busca por nombre o categoría y elige tu desafío.',
     },
+    admin: {
+      title: 'Panel de administración',
+      subtitle:
+        'Agrega, edita y elimina elementos del catálogo, revisa la autoría y gestiona los favoritos de la comunidad.',
+    },
   }
 
-  const heading = headings[view]
+  const heading = headings[view] || headings.login
   const cardWidth =
-    view === 'catalog'
+    view === 'catalog' || view === 'admin'
       ? 'max-w-5xl'
       : view === 'register'
         ? 'max-w-xl'
@@ -1282,8 +1305,18 @@ function LoginPage() {
         {view === 'catalog' && sessionUser && (
           <GameCatalog
             user={sessionUser}
+            isAdmin={isAdmin}
+            onOpenAdmin={() => switchView('admin')}
             onEditProfile={() => switchView('profile')}
             onLogout={handleLogout}
+          />
+        )}
+
+        {view === 'admin' && isAdmin && sessionUser && (
+          <AdminPanel
+            user={sessionUser}
+            users={users}
+            onBack={() => switchView('catalog')}
           />
         )}
 
@@ -1604,77 +1637,6 @@ function LoginPage() {
       {(view === 'login' || view === 'register') && (
         <div className="w-full max-w-5xl">
           <CommunityComments sessionUser={sessionUser} />
-        </div>
-      )}
-
-      {isAdmin && (
-        <div className="w-full max-w-5xl">
-          <section className="arcade-card w-full p-5" aria-labelledby="admin-dashboard-title">
-            <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 id="admin-dashboard-title" className="arcade-profile-name flex items-center gap-2">
-                <Users className="h-5 w-5 text-[#00e5ff]" aria-hidden="true" />
-                Panel de Administrador
-              </h2>
-              <button type="button" onClick={handleLogout} className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-2">
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Cerrar sesión
-              </button>
-            </header>
-            <div className="overflow-x-auto">
-              <table className="arcade-table w-full">
-                <thead>
-                  <tr>
-                    <th scope="col">Usuario</th>
-                    <th scope="col">DNI</th>
-                    <th scope="col">Estado</th>
-                    <th scope="col">Récords</th>
-                    <th scope="col">Juegos jugados</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.values(users ?? {}).map((user) => {
-                    const isOnline = sessionUser?.dni === user.dni
-                    const highScores = GAMES.map((game) => ({ gameId: game.id, score: readHighScore(user.dni, game.id) }))
-                    const playedGameIds = readPlayedGames(user.dni)
-                    const playedGames = GAMES.filter((game) => playedGameIds.includes(game.id))
-                    const totalScore = highScores.reduce((sum, entry) => sum + entry.score, 0)
-                    return (
-                      <tr key={user.dni}>
-                        <td className="arcade-table-cell">{user.name}</td>
-                        <td className="arcade-table-cell">{user.dni}</td>
-                        <td className="arcade-table-cell">
-                          <span className={`arcade-table-status ${isOnline ? 'arcade-table-status-online' : 'arcade-table-status-offline'}`}>
-                            {isOnline ? 'En línea' : 'Offline'}
-                          </span>
-                        </td>
-                        <td className="arcade-table-cell">
-                          {totalScore > 0 ? (
-                            <span className="arcade-table-score">
-                              <Trophy className="h-3.5 w-3.5 text-[#ffd319]" aria-hidden="true" />
-                              {totalScore} pts
-                            </span>
-                          ) : (
-                            'Sin récords'
-                          )}
-                        </td>
-                        <td className="arcade-table-cell">
-                          {playedGames.length > 0 ? (
-                            playedGames.map((game) => (
-                              <span key={game.id} className="arcade-table-game-tag">
-                                {game.name}
-                              </span>
-                            ))
-                          ) : (
-                            'Ninguno'
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
         </div>
       )}
     </main>
