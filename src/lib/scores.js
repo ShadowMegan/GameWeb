@@ -97,3 +97,19 @@ export function markGamePlayed(userId, gameId) {
     return
   }
 }
+
+export function deleteUserScores(userId) {
+  try {
+    const prefix = `${PREFIX}:${resolveOwner(userId)}:`
+    const keys = []
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index)
+      if (key && key.startsWith(prefix)) {
+        keys.push(key)
+      }
+    }
+    keys.forEach((key) => window.localStorage.removeItem(key))
+  } catch {
+    return
+  }
+}

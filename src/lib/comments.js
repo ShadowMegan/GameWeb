@@ -42,6 +42,21 @@ export function saveComments(comments) {
   }
 }
 
+export function deleteCommentsByUser(username) {
+  if (!username) {
+    return []
+  }
+
+  try {
+    const comments = loadComments()
+    const next = comments.filter((comment) => comment.user !== username)
+    saveComments(next)
+    return next
+  } catch {
+    return []
+  }
+}
+
 export function createComment({ user, stars, message }) {
   return {
     id:

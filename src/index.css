@@ -751,6 +751,103 @@ body {
     width: 240px;
     height: 240px;
   }
+
+  .arcade-panel {
+    outline-offset: 3px;
+  }
+
+  .arcade-logo {
+    width: 52px;
+    height: 52px;
+  }
+
+  .arcade-subtitle {
+    font-size: 1.05rem;
+    line-height: 1.35;
+  }
+
+  .arcade-tabs {
+    gap: 6px;
+    margin-bottom: 1.1rem;
+    padding: 4px;
+  }
+
+  .arcade-tab {
+    padding: 0.55rem 0.4rem;
+    white-space: normal;
+  }
+
+  .arcade-input {
+    font-size: 1.1rem;
+  }
+
+  .arcade-message {
+    padding: 0.7rem 0.8rem;
+    font-size: 1.05rem;
+  }
+
+  .theme-swatch-ring {
+    width: 1.9rem;
+    height: 1.9rem;
+  }
+
+  .theme-swatch-label {
+    font-size: 0.4rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .arcade-logo {
+    width: 44px;
+    height: 44px;
+  }
+
+  .arcade-title {
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+
+  .arcade-subtitle {
+    font-size: 0.95rem;
+  }
+
+  .arcade-tab {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.5rem;
+    letter-spacing: 0.02em;
+  }
+
+  .arcade-btn {
+    font-size: 0.58rem;
+  }
+
+  .arcade-input {
+    font-size: 1rem;
+  }
+
+  .arcade-message {
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-height: 600px) {
+  .arcade-logo {
+    width: 44px;
+    height: 44px;
+  }
+
+  .arcade-title {
+    font-size: 0.9rem;
+  }
+
+  .arcade-subtitle {
+    margin-top: 0.35rem;
+    font-size: 0.95rem;
+  }
+
+  .arcade-coin {
+    display: none;
+  }
 }
 
 /* ============ Sistema de temas intercambiables ============ */

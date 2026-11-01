@@ -9,18 +9,22 @@ import {
   Flame,
   Gamepad2,
   Skull,
+  Trash2,
   Trophy,
-  Users,
   Zap,
 } from 'lucide-react'
 import GameCatalog from '../components/catalog.jsx'
+import AdminPanel from '../components/admin/AdminPanel.jsx'
+import ConfirmDialog from '../components/admin/ConfirmDialog.jsx'
 import ThemeSelector from '../components/ThemeSelector.jsx'
 import CommunityComments from '../components/CommunityComments.jsx'
 import ArcadeAvatar from '../components/ArcadeAvatar.jsx'
 import { useTheme } from '../context/theme.js'
 import { containsBadWords, getBadWordsErrorMessage } from '../lib/badWords.js'
 import { AVATAR_ICONS, NEON_COLORS } from '../lib/profile.js'
-import { GAMES } from '../data/games.js'
+import { readCatalog } from '../lib/catalog.js'
+import { purgeUserAccountData } from '../lib/accounts.js'
+import { markUserOffline, markUserOnline } from '../lib/presence.js'
 import { readHighScore, readPlayedGames } from '../lib/scores.js'
 
 const USERS_KEY = 'gameweb_users'
@@ -77,6 +81,19 @@ const MOCK_USERS = {
 
 const ADMIN_IDENTIFIERS = ['admin', '99999999']
 const ADMIN_PASSWORD = 'admin'
+const ADMIN_USER = {
+  dni: 'admin',
+  name: 'Administrador GameWeb',
+  username: 'admin',
+  email: 'admin@gameweb.test',
+  phone: '',
+  gender: 'Prefiero no decirlo',
+  description: 'Cuenta de administración para gestionar el catálogo.',
+  role: 'admin',
+  avatar: 'crown',
+  neonColor: 'yellow',
+  createdAt: '2026-01-01T00:00:00.000Z',
+}
 const EMPTY_ADMIN_FORM = { identifier: '', password: '' }
 const EMPTY_LOGIN_FORM = { identifier: '', password: '' }
 const EMPTY_REGISTER_FORM = {
@@ -431,10 +448,13 @@ function LoginPage() {
   const [profileStatus, setProfileStatus] = useState(null)
 
   const [isAdmin, setIsAdmin] = useState(false)
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false)
   const successTimer = useRef(null)
-  const sessionUser = sessionDni ? users[sessionDni] : null
+  const sessionUser = isAdmin ? ADMIN_USER : sessionDni ? users[sessionDni] : null
+  const sessionUserId = sessionUser?.dni ?? ''
+  const catalog = readCatalog()
   const sessionPlayedGames = sessionUser
-    ? GAMES.filter((game) =>
+    ? catalog.filter((game) =>
         readPlayedGames(sessionUser.dni).includes(game.id),
       )
     : []
@@ -447,7 +467,34 @@ function LoginPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!sessionUserId) {
+      return undefined
+    }
+
+    markUserOnline(sessionUserId)
+    const heartbeat = window.setInterval(
+      () => markUserOnline(sessionUserId),
+      15000,
+    )
+
+    function handleUnload() {
+      markUserOffline(sessionUserId)
+    }
+
+    window.addEventListener('beforeunload', handleUnload)
+
+    return () => {
+      window.clearInterval(heartbeat)
+      window.removeEventListener('beforeunload', handleUnload)
+      markUserOffline(sessionUserId)
+    }
+  }, [sessionUserId])
+
   function switchView(nextView) {
+    if (nextView === 'admin' && !isAdmin) {
+      return
+    }
     if (successTimer.current) {
       window.clearTimeout(successTimer.current)
       successTimer.current = null
@@ -526,11 +573,12 @@ function LoginPage() {
 
     setIsAdmin(true)
     setSessionDni('admin')
+    setDeleteAccountOpen(false)
     setAdminForm(EMPTY_ADMIN_FORM)
     setAdminErrors({})
     setAdminMessage(null)
     setLoginMessage(null)
-    setView('catalog')
+    setView('admin')
   }
 
   function handleRegisterChange(event) {
@@ -762,17 +810,64 @@ function LoginPage() {
   function handleLogout() {
     setSessionDni('')
     setIsAdmin(false)
+    setDeleteAccountOpen(false)
     setAdminForm(EMPTY_ADMIN_FORM)
     setAdminErrors({})
     setAdminMessage(null)
     setShowAdminPassword(false)
     setLoginForm({
-      identifier: sessionUser ? sessionUser.dni : '',
+      identifier:
+        sessionUser && sessionUser.role !== 'admin' ? sessionUser.dni : '',
       password: '',
     })
     setLoginErrors({})
     setLoginMessage(null)
     setProfileStatus(null)
+    setView('login')
+  }
+
+  function removeAccount(account) {
+    if (!account) {
+      return
+    }
+    const nextUsers = { ...users }
+    delete nextUsers[account.dni]
+    setUsers(nextUsers)
+    saveUsers(nextUsers)
+    purgeUserAccountData(account.dni, account.username)
+  }
+
+  function handleDeleteUser(account) {
+    if (!isAdmin || !account) {
+      return
+    }
+    removeAccount(account)
+  }
+
+  function handleDeleteOwnAccount() {
+    if (!sessionUser || sessionUser.role === 'admin') {
+      return
+    }
+
+    const deletedAccount = sessionUser
+    removeAccount(deletedAccount)
+    setDeleteAccountOpen(false)
+    setSessionDni('')
+    setIsAdmin(false)
+    setProfileForm({
+      username: '',
+      description: '',
+      avatar: 'gamepad',
+      neonColor: 'pink',
+    })
+    setProfileErrors({})
+    setProfileStatus(null)
+    setLoginForm(EMPTY_LOGIN_FORM)
+    setLoginErrors({})
+    setLoginMessage({
+      type: 'info',
+      message: `La cuenta @${deletedAccount.username} se eliminó definitivamente.`,
+    })
     setView('login')
   }
 
@@ -801,21 +896,28 @@ function LoginPage() {
       subtitle:
         'Explora la sala GameWeb: busca por nombre o categoría y elige tu desafío.',
     },
+    admin: {
+      title: 'Panel de administración',
+      subtitle:
+        'Agrega, edita y elimina elementos del catálogo, revisa la autoría y gestiona los favoritos de la comunidad.',
+    },
   }
 
-  const heading = headings[view]
+  const heading = headings[view] || headings.login
   const cardWidth =
     view === 'catalog'
-      ? 'max-w-5xl'
-      : view === 'register'
-        ? 'max-w-xl'
-        : view === 'profile'
-          ? 'max-w-2xl'
-          : 'max-w-md'
+      ? 'max-w-[1700px]'
+      : view === 'admin'
+        ? 'max-w-7xl'
+        : view === 'register'
+          ? 'max-w-xl'
+          : view === 'profile'
+            ? 'max-w-2xl'
+            : 'max-w-md'
 
   return (
     <main
-      className={`arcade-world theme-${themeId} relative flex min-h-screen flex-col items-center overflow-hidden px-4 py-10`}
+      className={`arcade-world theme-${themeId} relative flex min-h-dvh flex-col items-center gap-5 overflow-x-clip px-3 py-5 sm:gap-7 sm:px-4 sm:py-8 lg:py-10`}
     >
       <div className="arcade-sun" aria-hidden="true" />
       <div className="arcade-glow arcade-glow-pink" aria-hidden="true" />
@@ -823,11 +925,11 @@ function LoginPage() {
       <div className="arcade-scanlines" aria-hidden="true" />
 
       <section
-        className={`arcade-panel relative w-full ${cardWidth} overflow-hidden p-6 transition-[max-width] duration-300 sm:p-10`}
+        className={`arcade-panel relative w-full ${cardWidth} overflow-hidden p-4 transition-[max-width] duration-300 sm:p-7 lg:p-10`}
       >
-        <header className="mb-7 text-center">
-          <div className="arcade-logo mx-auto mb-4" aria-hidden="true">
-            <Gamepad2 className="h-9 w-9" />
+        <header className="mb-5 text-center sm:mb-7">
+          <div className="arcade-logo mx-auto mb-3 sm:mb-4" aria-hidden="true">
+            <Gamepad2 className="h-7 w-7 sm:h-9 sm:w-9" />
           </div>
           <ThemeSelector />
           <h1 className="arcade-title mt-3">{heading.title}</h1>
@@ -1282,8 +1384,19 @@ function LoginPage() {
         {view === 'catalog' && sessionUser && (
           <GameCatalog
             user={sessionUser}
+            isAdmin={isAdmin}
+            onOpenAdmin={() => switchView('admin')}
             onEditProfile={() => switchView('profile')}
             onLogout={handleLogout}
+          />
+        )}
+
+        {view === 'admin' && isAdmin && sessionUser && (
+          <AdminPanel
+            user={sessionUser}
+            users={users}
+            onDeleteUser={handleDeleteUser}
+            onBack={() => switchView('catalog')}
           />
         )}
 
@@ -1572,6 +1685,35 @@ function LoginPage() {
                 Guardar cambios
               </button>
             </form>
+
+            <section
+              className="arcade-card border-[#ff4d6d55] p-5"
+              aria-labelledby="delete-account-title"
+            >
+              <h2
+                id="delete-account-title"
+                className="arcade-profile-name mb-2 flex items-center gap-2"
+              >
+                <Trash2
+                  className="h-5 w-5 text-[#ff4d6d]"
+                  aria-hidden="true"
+                />
+                Zona de peligro
+              </h2>
+              <p className="arcade-hint mb-4">
+                Eliminar tu cuenta borrará de forma definitiva tu perfil,
+                récords, juegos jugados, favoritos y comentarios. No se puede
+                deshacer.
+              </p>
+              <button
+                type="button"
+                onClick={() => setDeleteAccountOpen(true)}
+                className="arcade-btn arcade-btn-sm flex items-center gap-2 border-[#ff4d6d] bg-[#ff4d6d22] text-[#ff8fa3] hover:bg-[#ff4d6d33]"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Eliminar mi cuenta
+              </button>
+            </section>
           </div>
         )}
 
@@ -1607,75 +1749,14 @@ function LoginPage() {
         </div>
       )}
 
-      {isAdmin && (
-        <div className="w-full max-w-5xl">
-          <section className="arcade-card w-full p-5" aria-labelledby="admin-dashboard-title">
-            <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 id="admin-dashboard-title" className="arcade-profile-name flex items-center gap-2">
-                <Users className="h-5 w-5 text-[#00e5ff]" aria-hidden="true" />
-                Panel de Administrador
-              </h2>
-              <button type="button" onClick={handleLogout} className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-2">
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Cerrar sesión
-              </button>
-            </header>
-            <div className="overflow-x-auto">
-              <table className="arcade-table w-full">
-                <thead>
-                  <tr>
-                    <th scope="col">Usuario</th>
-                    <th scope="col">DNI</th>
-                    <th scope="col">Estado</th>
-                    <th scope="col">Récords</th>
-                    <th scope="col">Juegos jugados</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.values(users ?? {}).map((user) => {
-                    const isOnline = sessionUser?.dni === user.dni
-                    const highScores = GAMES.map((game) => ({ gameId: game.id, score: readHighScore(user.dni, game.id) }))
-                    const playedGameIds = readPlayedGames(user.dni)
-                    const playedGames = GAMES.filter((game) => playedGameIds.includes(game.id))
-                    const totalScore = highScores.reduce((sum, entry) => sum + entry.score, 0)
-                    return (
-                      <tr key={user.dni}>
-                        <td className="arcade-table-cell">{user.name}</td>
-                        <td className="arcade-table-cell">{user.dni}</td>
-                        <td className="arcade-table-cell">
-                          <span className={`arcade-table-status ${isOnline ? 'arcade-table-status-online' : 'arcade-table-status-offline'}`}>
-                            {isOnline ? 'En línea' : 'Offline'}
-                          </span>
-                        </td>
-                        <td className="arcade-table-cell">
-                          {totalScore > 0 ? (
-                            <span className="arcade-table-score">
-                              <Trophy className="h-3.5 w-3.5 text-[#ffd319]" aria-hidden="true" />
-                              {totalScore} pts
-                            </span>
-                          ) : (
-                            'Sin récords'
-                          )}
-                        </td>
-                        <td className="arcade-table-cell">
-                          {playedGames.length > 0 ? (
-                            playedGames.map((game) => (
-                              <span key={game.id} className="arcade-table-game-tag">
-                                {game.name}
-                              </span>
-                            ))
-                          ) : (
-                            'Ninguno'
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
+      {deleteAccountOpen && sessionUser && sessionUser.role !== 'admin' && (
+        <ConfirmDialog
+          title="ELIMINAR MI CUENTA"
+          message={`¿Seguro que quieres eliminar la cuenta @${sessionUser.username}? Se borrarán de forma definitiva tu perfil, récords, juegos jugados, favoritos y comentarios. Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar mi cuenta"
+          onConfirm={handleDeleteOwnAccount}
+          onCancel={() => setDeleteAccountOpen(false)}
+        />
       )}
     </main>
   )
