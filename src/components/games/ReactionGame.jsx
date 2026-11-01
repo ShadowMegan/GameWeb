@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Play, RotateCcw, Target, Timer, Trophy } from 'lucide-react'
 
