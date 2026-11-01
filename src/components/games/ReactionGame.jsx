@@ -162,3 +162,5 @@ function ReactionGame({ onScore, onStateChange }) {
 }
 
 export default ReactionGame
+
+// Actualización para revisión de la profesora
