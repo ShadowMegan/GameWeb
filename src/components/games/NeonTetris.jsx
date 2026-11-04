@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { RotateCcw, Trophy } from 'lucide-react'
 import { readHighScore, saveHighScore } from '../../lib/scores.js'
+import { GamePauseButton, GamePauseOverlay } from './GamePauseControls.jsx'
+import { useGamePause } from './useGamePause.js'
+import { usePausableTimeout } from './usePausableTimeout.js'
 
 const ACCENT = '#ffd319'
 const COLS = 10
@@ -255,7 +258,7 @@ function NextPiecePreview({ piece }) {
   )
 }
 
-function NeonTetris({ userId, onScore, onStateChange }) {
+function NeonTetris({ userId, onScore, onStateChange, pauseRequested = false }) {
   const [game, setGame] = useState(() => ({
     ...spawnState(readHighScore(userId, 'neon-tetris')),
     status: 'idle',
@@ -267,6 +270,23 @@ function NeonTetris({ userId, onScore, onStateChange }) {
   const beatRecord = status === 'over' && score > 0 && score >= highScore
   const lastSavedScoreRef = useRef(highScore)
   const gameRef = useRef(game)
+  const { isPaused, pausedRef, togglePause } = useGamePause(
+    status === 'running',
+    pauseRequested,
+  )
+
+  usePausableTimeout(
+    () => {
+      setGame((current) =>
+        current.flashRows.length === 0
+          ? current
+          : { ...current, flashRows: [] },
+      )
+    },
+    420,
+    game.flashRows.length > 0,
+    isPaused,
+  )
 
   useEffect(() => {
     gameRef.current = game
@@ -279,8 +299,12 @@ function NeonTetris({ userId, onScore, onStateChange }) {
   }, [score, onScore])
 
   useEffect(() => {
-    onStateChange?.({ status, score, level: lines })
-  }, [status, score, lines, onStateChange])
+    onStateChange?.({
+      status: isPaused ? 'paused' : status,
+      score,
+      level: lines,
+    })
+  }, [isPaused, status, score, lines, onStateChange])
 
   useEffect(() => {
     if (highScore > lastSavedScoreRef.current) {
@@ -290,28 +314,14 @@ function NeonTetris({ userId, onScore, onStateChange }) {
   }, [highScore, userId])
 
   useEffect(() => {
-    if (game.flashRows.length === 0) {
-      return undefined
-    }
-    const timer = window.setTimeout(() => {
-      setGame((current) =>
-        current.flashRows.length === 0
-          ? current
-          : { ...current, flashRows: [] },
-      )
-    }, 420)
-    return () => window.clearTimeout(timer)
-  }, [game.flashRows])
-
-  useEffect(() => {
-    if (status !== 'running') {
+    if (status !== 'running' || isPaused) {
       return undefined
     }
     const timer = window.setInterval(() => {
       setGame(applyTetrisStep)
     }, STEP_MS)
     return () => window.clearInterval(timer)
-  }, [status])
+  }, [status, isPaused])
 
   function startGame() {
     setGame(spawnState(gameRef.current.highScore))
@@ -319,6 +329,13 @@ function NeonTetris({ userId, onScore, onStateChange }) {
 
   useEffect(() => {
     function handleKey(event) {
+      if (
+        pausedRef.current ||
+        event.key === 'Escape' ||
+        event.key.toLowerCase() === 'p'
+      ) {
+        return
+      }
       const current = gameRef.current
       const key = event.key.toLowerCase()
       if (key === 'arrowleft' || key === 'a') {
@@ -381,10 +398,15 @@ function NeonTetris({ userId, onScore, onStateChange }) {
           Puntos: <span style={{ color: ACCENT }}>{score}</span> · Líneas:{' '}
           <span style={{ color: ACCENT }}>{game.lines}</span>
         </p>
-        <p className="arcade-meta-label flex items-center gap-1.5">
-          <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Récord:{' '}
-          <span style={{ color: '#ffd319' }}>{highScore}</span>
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="arcade-meta-label flex items-center gap-1.5">
+            <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Récord:{' '}
+            <span style={{ color: '#ffd319' }}>{highScore}</span>
+          </p>
+          {status === 'running' && (
+            <GamePauseButton isPaused={isPaused} onToggle={togglePause} />
+          )}
+        </div>
       </div>
 
       <div className="mx-auto flex w-full max-w-md items-start justify-center gap-3">
@@ -464,6 +486,7 @@ function NeonTetris({ userId, onScore, onStateChange }) {
               </button>
             </div>
           )}
+          {isPaused && <GamePauseOverlay onResume={togglePause} />}
         </div>
 
         <div className="flex shrink-0 flex-col items-center gap-3 pt-2">

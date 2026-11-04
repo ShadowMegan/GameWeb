@@ -1,13 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ArrowLeft,
   Check,
   CircleAlert,
+  Clock3,
   Crown,
   Eye,
   EyeOff,
   Flame,
   Gamepad2,
+  Mail,
+  RefreshCw,
   Skull,
   Trash2,
   Trophy,
@@ -28,27 +31,17 @@ import { markUserOffline, markUserOnline } from '../lib/presence.js'
 import { readHighScore, readPlayedGames } from '../lib/scores.js'
 
 const USERS_KEY = 'gameweb_users'
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
+const EMAIL_REGEX = /^[^\s@]+@gmail\.com$/i
 const DNI_LENGTH = 8
+const VERIFICATION_CODE_TTL_MS = 30000
 const MIN_PASSWORD_LENGTH = 8
 const MAX_PASSWORD_LENGTH = 32
 const MAX_DESCRIPTION_LENGTH = 140
 const MAX_PHONE_LENGTH = 15
 const GENDERS = ['Masculino', 'Femenino', 'No binario', 'Prefiero no decirlo']
-const SUSPICIOUS_DOMAINS = [
-  'mailinator.com',
-  'tempmail.com',
-  '10minutemail.com',
-  'guerrillamail.com',
-  'yopmail.com',
-  'trashmail.com',
-  'fakeinbox.com',
-  'sharklasers.com',
-]
-
 // Datos de prueba (mock): contraseñas pre-haseadas (salt:password + SHA-256)
 // para poder iniciar sesión de inmediato sin registrarse.
-//   DNI 12345678 / jugador.test@gmail.com  -> contraseña: Arcade2024
+//   jugador.test@gmail.com -> contraseña: Arcade2024
 //   DNI 87654321 / jugador2.test@gmail.com -> contraseña: Password123
 const MOCK_USERS = {
   12345678: {
@@ -148,13 +141,15 @@ function validateEmail(rawEmail) {
     return 'El correo electrónico es obligatorio.'
   }
   if (!EMAIL_REGEX.test(email)) {
-    return 'Ingresa un correo válido (ejemplo: nombre@gmail.com).'
-  }
-  const domain = email.slice(email.lastIndexOf('@') + 1)
-  if (SUSPICIOUS_DOMAINS.includes(domain)) {
-    return 'No se permiten correos temporales o de dominios sospechosos.'
+    return 'Solo se permiten direcciones de correo @gmail.com.'
   }
   return ''
+}
+
+function createVerificationCode() {
+  const value = new Uint32Array(1)
+  window.crypto.getRandomValues(value)
+  return String(value[0] % 1000000).padStart(6, '0')
 }
 
 function validateDni(rawDni) {
@@ -436,7 +431,19 @@ function LoginPage() {
   const [registerStatus, setRegisterStatus] = useState(null)
   const [registerBusy, setRegisterBusy] = useState(false)
   const [showRegisterPassword, setShowRegisterPassword] = useState(false)
-  const [pendingDni, setPendingDni] = useState('')
+  const [verification, setVerification] = useState(null)
+  const [verificationCode, setVerificationCode] = useState('')
+  const [verificationRemaining, setVerificationRemaining] = useState(0)
+  const [verificationMessage, setVerificationMessage] = useState(null)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetForm, setResetForm] = useState({
+    password: '',
+    confirmPassword: '',
+  })
+  const [resetErrors, setResetErrors] = useState({})
+  const [resetMessage, setResetMessage] = useState(null)
+  const [resetBusy, setResetBusy] = useState(false)
 
   const [profileForm, setProfileForm] = useState({
     username: '',
@@ -449,7 +456,6 @@ function LoginPage() {
 
   const [isAdmin, setIsAdmin] = useState(false)
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false)
-  const successTimer = useRef(null)
   const sessionUser = isAdmin ? ADMIN_USER : sessionDni ? users[sessionDni] : null
   const sessionUserId = sessionUser?.dni ?? ''
   const catalog = readCatalog()
@@ -458,14 +464,6 @@ function LoginPage() {
         readPlayedGames(sessionUser.dni).includes(game.id),
       )
     : []
-
-  useEffect(() => {
-    return () => {
-      if (successTimer.current) {
-        window.clearTimeout(successTimer.current)
-      }
-    }
-  }, [])
 
   useEffect(() => {
     if (!sessionUserId) {
@@ -491,13 +489,33 @@ function LoginPage() {
     }
   }, [sessionUserId])
 
+  useEffect(() => {
+    if (view !== 'verify-email' || !verification) {
+      return undefined
+    }
+
+    function updateCountdown() {
+      const remaining = Math.max(
+        0,
+        Math.ceil((verification.expiresAt - Date.now()) / 1000),
+      )
+      setVerificationRemaining(remaining)
+      if (remaining === 0) {
+        setVerificationMessage({
+          type: 'error',
+          message: 'El código venció. Solicita uno nuevo para continuar.',
+        })
+      }
+    }
+
+    updateCountdown()
+    const timer = window.setInterval(updateCountdown, 250)
+    return () => window.clearInterval(timer)
+  }, [view, verification])
+
   function switchView(nextView) {
     if (nextView === 'admin' && !isAdmin) {
       return
-    }
-    if (successTimer.current) {
-      window.clearTimeout(successTimer.current)
-      successTimer.current = null
     }
     setRegisterStatus(null)
     setView(nextView)
@@ -598,6 +616,205 @@ function LoginPage() {
     setRegisterStatus(null)
   }
 
+  function issueVerification(purpose, email, payload = null) {
+    const code = createVerificationCode()
+    setVerification({
+      purpose,
+      email,
+      code,
+      expiresAt: Date.now() + VERIFICATION_CODE_TTL_MS,
+      payload,
+    })
+    setVerificationCode('')
+    setVerificationRemaining(30)
+    setVerificationMessage({
+      type: 'info',
+      message: `Prototipo local: código de demostración ${code}. No se envió un correo real.`,
+    })
+    setView('verify-email')
+  }
+
+  function handleResendVerification() {
+    if (!verification || verificationRemaining > 0) {
+      return
+    }
+    issueVerification(
+      verification.purpose,
+      verification.email,
+      verification.payload,
+    )
+  }
+
+  async function handleVerificationSubmit(event) {
+    event.preventDefault()
+    if (!verification) {
+      return
+    }
+    if (Date.now() >= verification.expiresAt) {
+      setVerificationRemaining(0)
+      setVerificationMessage({
+        type: 'error',
+        message: 'El código venció. Solicita uno nuevo para continuar.',
+      })
+      return
+    }
+    if (!/^\d{6}$/.test(verificationCode)) {
+      setVerificationMessage({
+        type: 'error',
+        message: 'Ingresa el código de 6 dígitos.',
+      })
+      return
+    }
+    if (verificationCode !== verification.code) {
+      setVerificationMessage({
+        type: 'error',
+        message: 'El código no coincide. Revisa e inténtalo nuevamente.',
+      })
+      return
+    }
+
+    if (verification.purpose === 'register') {
+      const form = verification.payload
+      setRegisterBusy(true)
+      try {
+        const salt = createSalt()
+        const passwordHash = await hashPassword(form.password, salt)
+        const dni = form.dni
+        const typedUsername = form.username.trim()
+        const username = typedUsername
+          ? typedUsername
+          : createUniqueUsername(
+              slugifyUsername(form.email.split('@')[0] || form.name),
+              users,
+              dni,
+            )
+        const nextUsers = {
+          ...users,
+          [dni]: {
+            dni,
+            name: form.name.trim(),
+            phone: form.phone.trim(),
+            email: form.email.trim().toLowerCase(),
+            gender: form.gender,
+            username,
+            description: form.description.trim(),
+            salt,
+            passwordHash,
+            createdAt: new Date().toISOString(),
+          },
+        }
+
+        setUsers(nextUsers)
+        saveUsers(nextUsers)
+        setLoginForm({ identifier: form.email.trim().toLowerCase(), password: '' })
+        setLoginMessage({
+          type: 'success',
+          message: 'Correo verificado y registro completado. Ya puedes iniciar sesión.',
+        })
+        setRegisterForm(EMPTY_REGISTER_FORM)
+        setRegisterErrors({})
+        setRegisterStatus(null)
+        setVerification(null)
+        setView('login')
+      } catch {
+        setVerificationMessage({
+          type: 'error',
+          message: 'No se pudo completar el registro. Inténtalo nuevamente.',
+        })
+      } finally {
+        setRegisterBusy(false)
+      }
+      return
+    }
+
+    setResetEmail(verification.email)
+    setResetForm({ password: '', confirmPassword: '' })
+    setResetErrors({})
+    setResetMessage(null)
+    setVerification(null)
+    setView('reset-password')
+  }
+
+  function handleForgotPasswordSubmit(event) {
+    event.preventDefault()
+    const email = forgotEmail.trim().toLowerCase()
+    const emailError = validateEmail(email)
+    const user = Object.values(users).find((candidate) => candidate.email === email)
+    if (emailError) {
+      setResetMessage({ type: 'error', message: emailError })
+      return
+    }
+    if (!user) {
+      setResetMessage({
+        type: 'error',
+        message: 'No encontramos una cuenta registrada con ese correo.',
+      })
+      return
+    }
+    issueVerification('reset-password', email)
+  }
+
+  function handleResetChange(event) {
+    const { name, value } = event.target
+    setResetForm((previous) => ({ ...previous, [name]: value }))
+    setResetErrors((previous) => ({ ...previous, [name]: '' }))
+    setResetMessage(null)
+  }
+
+  async function handleResetPasswordSubmit(event) {
+    event.preventDefault()
+    const errors = {}
+    const passwordError = validatePassword(resetForm.password)
+    if (passwordError) {
+      errors.password = passwordError
+    }
+    if (resetForm.password !== resetForm.confirmPassword) {
+      errors.confirmPassword = 'Las contraseñas no coinciden.'
+    }
+    setResetErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      return
+    }
+
+    const account = Object.values(users).find(
+      (candidate) => candidate.email === resetEmail,
+    )
+    if (!account) {
+      setResetMessage({
+        type: 'error',
+        message: 'No encontramos la cuenta para actualizar la contraseña.',
+      })
+      return
+    }
+
+    setResetBusy(true)
+    try {
+      const salt = createSalt()
+      const passwordHash = await hashPassword(resetForm.password, salt)
+      const nextUsers = {
+        ...users,
+        [account.dni]: { ...account, salt, passwordHash },
+      }
+      setUsers(nextUsers)
+      saveUsers(nextUsers)
+      setLoginForm({ identifier: resetEmail, password: '' })
+      setLoginMessage({
+        type: 'success',
+        message: 'Contraseña actualizada. Ya puedes iniciar sesión.',
+      })
+      setResetForm({ password: '', confirmPassword: '' })
+      setResetEmail('')
+      setView('login')
+    } catch {
+      setResetMessage({
+        type: 'error',
+        message: 'No se pudo actualizar la contraseña. Inténtalo de nuevo.',
+      })
+    } finally {
+      setResetBusy(false)
+    }
+  }
+
   async function handleLoginSubmit(event) {
     event.preventDefault()
     if (loginBusy) {
@@ -608,16 +825,11 @@ function LoginPage() {
     const identifier = loginForm.identifier.trim()
 
     if (!identifier) {
-      errors.identifier = 'El DNI o correo electrónico es obligatorio.'
-    } else if (identifier.includes('@')) {
+      errors.identifier = 'El correo electrónico es obligatorio.'
+    } else {
       const emailError = validateEmail(identifier)
       if (emailError) {
         errors.identifier = emailError
-      }
-    } else {
-      const dniError = validateDni(identifier)
-      if (dniError) {
-        errors.identifier = dniError
       }
     }
     if (!loginForm.password) {
@@ -633,18 +845,14 @@ function LoginPage() {
       return
     }
 
-    let user = users[identifier]
-    if (!user && identifier.includes('@')) {
-      user = Object.values(users).find(
-        (candidate) => candidate.email === identifier.toLowerCase(),
-      )
-    }
+    const user = Object.values(users).find(
+      (candidate) => candidate.email === identifier.toLowerCase(),
+    )
 
     if (!user) {
       setLoginMessage({
         type: 'error',
-        message:
-          'No existe una cuenta con ese DNI o correo. Regístrate para crear tu perfil.',
+        message: 'No existe una cuenta con ese correo. Regístrate para crear tu perfil.',
       })
       return
     }
@@ -682,7 +890,7 @@ function LoginPage() {
     }
   }
 
-  async function handleRegisterSubmit(event) {
+  function handleRegisterSubmit(event) {
     event.preventDefault()
     if (registerBusy) {
       return
@@ -698,65 +906,11 @@ function LoginPage() {
       return
     }
 
-    const dni = registerForm.dni
-    setRegisterBusy(true)
-
-    try {
-      const salt = createSalt()
-      const passwordHash = await hashPassword(registerForm.password, salt)
-      const typedUsername = registerForm.username.trim()
-        const username = typedUsername
-          ? typedUsername
-          : createUniqueUsername(
-              slugifyUsername(
-                registerForm.email.split('@')[0] || registerForm.name,
-              ),
-              users,
-              dni,
-            )
-
-      const nextUsers = {
-        ...users,
-        [dni]: {
-          dni,
-          name: registerForm.name.trim(),
-          phone: registerForm.phone.trim(),
-          email: registerForm.email.trim().toLowerCase(),
-          gender: registerForm.gender,
-          username,
-          description: registerForm.description.trim(),
-          salt,
-          passwordHash,
-          createdAt: new Date().toISOString(),
-        },
-      }
-
-      setUsers(nextUsers)
-      saveUsers(nextUsers)
-      setPendingDni(dni)
-      setRegisterStatus({ type: 'success' })
-
-      successTimer.current = window.setTimeout(() => {
-        setLoginForm({ identifier: dni, password: '' })
-        setLoginMessage({
-          type: 'info',
-          message: `Registro completado. Ingresa tu contraseña para acceder con el DNI ${dni} o tu correo.`,
-        })
-        setLoginErrors({})
-        setRegisterForm(EMPTY_REGISTER_FORM)
-        setRegisterErrors({})
-        setRegisterStatus(null)
-        setView('login')
-        successTimer.current = null
-      }, 2200)
-    } catch {
-      setRegisterStatus({
-        type: 'error',
-        message: 'No se pudo completar el registro. Inténtalo de nuevo.',
-      })
-    } finally {
-      setRegisterBusy(false)
-    }
+    issueVerification(
+      'register',
+      registerForm.email.trim().toLowerCase(),
+      { ...registerForm },
+    )
   }
 
   function handleProfileSubmit(event) {
@@ -817,7 +971,7 @@ function LoginPage() {
     setShowAdminPassword(false)
     setLoginForm({
       identifier:
-        sessionUser && sessionUser.role !== 'admin' ? sessionUser.dni : '',
+        sessionUser && sessionUser.role !== 'admin' ? sessionUser.email : '',
       password: '',
     })
     setLoginErrors({})
@@ -875,17 +1029,28 @@ function LoginPage() {
     login: {
       title: 'Inicia sesión en GameWeb',
       subtitle:
-        'Accede con tu DNI o correo electrónico y tu contraseña para gestionar tu perfil.',
+        'Accede con tu correo @gmail.com y tu contraseña para gestionar tu perfil.',
     },
     'admin-login': {
       title: 'Acceso administrador',
       subtitle:
         'Ingresa manualmente tus credenciales de administrador. Por seguridad, los campos nunca se rellenan automáticamente.',
     },
+    'forgot-password': {
+      title: 'Recuperar contraseña',
+      subtitle: 'Te ayudaremos a restablecer el acceso a tu cuenta.',
+    },
+    'verify-email': {
+      title: 'Verifica tu correo',
+      subtitle: 'Ingresa el código de 6 dígitos para continuar.',
+    },
+    'reset-password': {
+      title: 'Crea una nueva contraseña',
+      subtitle: 'Elige una contraseña segura para tu cuenta.',
+    },
     register: {
       title: 'Crea tu perfil de jugador',
-      subtitle:
-        'Registra tus datos personales y personaliza tu cuenta de GameWeb.',
+      subtitle: 'Regístrate con un correo @gmail.com y personaliza tu cuenta.',
     },
     profile: {
       title: 'Tu perfil',
@@ -911,7 +1076,9 @@ function LoginPage() {
         ? 'max-w-7xl'
         : view === 'register'
           ? 'max-w-xl'
-          : view === 'profile'
+            : view === 'verify-email' || view === 'forgot-password' || view === 'reset-password'
+              ? 'max-w-md'
+            : view === 'profile'
             ? 'max-w-2xl'
             : 'max-w-md'
 
@@ -967,16 +1134,16 @@ function LoginPage() {
           >
             <div>
               <label htmlFor="login-identifier" className={labelClass}>
-                DNI o correo electrónico
+                Correo electrónico
               </label>
               <input
                 id="login-identifier"
                 name="identifier"
-                type="text"
-                autoComplete="username"
+                type="email"
+                autoComplete="email"
                 value={loginForm.identifier}
                 onChange={handleLoginChange}
-                placeholder="8 dígitos o tucorreo@gmail.com"
+                placeholder="tucorreo@gmail.com"
                 aria-invalid={Boolean(loginErrors.identifier)}
                 aria-describedby={
                   loginErrors.identifier ? 'login-identifier-error' : undefined
@@ -1026,6 +1193,20 @@ function LoginPage() {
             </div>
 
             <p className="arcade-hint text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setForgotEmail(loginForm.identifier)
+                  setResetMessage(null)
+                  setView('forgot-password')
+                }}
+                className="arcade-link"
+              >
+                ¿No recuerdas tu contraseña?
+              </button>
+            </p>
+
+            <p className="arcade-hint text-center">
               ¿Aún no tienes cuenta?{' '}
               <button
                 type="button"
@@ -1037,9 +1218,183 @@ function LoginPage() {
             </p>
 
             <p className="arcade-hint text-center">
-              Cuenta de prueba: DNI 12345678 / jugador.test@gmail.com ·
+              Cuenta de prueba: jugador.test@gmail.com ·
               contraseña <strong>Arcade2024</strong>
             </p>
+          </form>
+        )}
+
+        {view === 'forgot-password' && (
+          <form
+            className="animate-fade-slide space-y-5"
+            onSubmit={handleForgotPasswordSubmit}
+            noValidate
+          >
+            <div>
+              <label htmlFor="forgot-email" className={labelClass}>
+                Correo @gmail.com de tu cuenta
+              </label>
+              <input
+                id="forgot-email"
+                type="email"
+                autoComplete="email"
+                value={forgotEmail}
+                onChange={(event) => {
+                  setForgotEmail(event.target.value)
+                  setResetMessage(null)
+                }}
+                placeholder="tucorreo@gmail.com"
+                className={inputBase}
+              />
+            </div>
+            <FormMessage status={resetMessage} />
+            <button
+              type="submit"
+              className="arcade-btn arcade-btn-primary w-full px-4 py-3"
+            >
+              <Mail className="h-4 w-4" aria-hidden="true" />
+              Solicitar código
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('login')}
+              className="arcade-btn arcade-btn-secondary w-full px-4 py-3"
+            >
+              Volver al inicio de sesión
+            </button>
+          </form>
+        )}
+
+        {view === 'verify-email' && verification && (
+          <form
+            className="animate-fade-slide space-y-5"
+            onSubmit={handleVerificationSubmit}
+            noValidate
+          >
+            <p className="arcade-hint text-center">
+              {verification.purpose === 'register'
+                ? 'Verifica el correo para completar tu registro:'
+                : 'Verifica tu identidad para restablecer la contraseña:'}{' '}
+              <span className="text-white">{verification.email}</span>
+            </p>
+            <div className="arcade-message arcade-message-info">
+              <Mail className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+              <p>
+                Prototipo local: código de demostración{' '}
+                <strong className="select-all text-white">
+                  {verification.code}
+                </strong>
+                . No se envió ningún correo.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="verification-code" className={labelClass}>
+                Código de verificación
+              </label>
+              <input
+                id="verification-code"
+                name="verificationCode"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                pattern="[0-9]{6}"
+                value={verificationCode}
+                onChange={(event) => {
+                  setVerificationCode(
+                    event.target.value.replace(/\D/g, '').slice(0, 6),
+                  )
+                  setVerificationMessage(null)
+                }}
+                placeholder="000000"
+                className={`${inputBase} text-center font-mono text-2xl tracking-[0.5em]`}
+                aria-describedby="verification-countdown"
+              />
+              <p
+                id="verification-countdown"
+                className="arcade-hint mt-2 flex items-center justify-center gap-1"
+                aria-live="polite"
+              >
+                <Clock3 className="h-4 w-4" aria-hidden="true" />
+                {verificationRemaining > 0
+                  ? `El código vence en ${verificationRemaining} s`
+                  : 'Código vencido'}
+              </p>
+            </div>
+            <FormMessage status={verificationMessage} />
+            <button
+              type="submit"
+              disabled={registerBusy}
+              className="arcade-btn arcade-btn-primary w-full px-4 py-3"
+            >
+              {registerBusy ? 'Completando...' : 'Verificar código'}
+            </button>
+            <button
+              type="button"
+              onClick={handleResendVerification}
+              disabled={verificationRemaining > 0}
+              className="arcade-btn arcade-btn-secondary w-full px-4 py-3"
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              {verificationRemaining > 0
+                ? `Solicitar otro código en ${verificationRemaining} s`
+                : 'Solicitar código nuevo'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setVerification(null)
+                setVerificationCode('')
+                setView(verification.purpose === 'register' ? 'register' : 'login')
+              }}
+              className="arcade-link w-full text-center"
+            >
+              Cancelar
+            </button>
+          </form>
+        )}
+
+        {view === 'reset-password' && (
+          <form
+            className="animate-fade-slide space-y-5"
+            onSubmit={handleResetPasswordSubmit}
+            noValidate
+          >
+            <p className="arcade-hint text-center">
+              Cuenta verificada: <span className="text-white">{resetEmail}</span>
+            </p>
+            <PasswordField
+              id="reset-password"
+              name="password"
+              label="Nueva contraseña"
+              value={resetForm.password}
+              onChange={handleResetChange}
+              error={resetErrors.password}
+              visible={showRegisterPassword}
+              onToggle={() => setShowRegisterPassword((value) => !value)}
+              autoComplete="new-password"
+              placeholder="Escribe una nueva contraseña"
+            />
+            <PasswordField
+              id="reset-confirm-password"
+              name="confirmPassword"
+              label="Confirmar nueva contraseña"
+              value={resetForm.confirmPassword}
+              onChange={handleResetChange}
+              error={resetErrors.confirmPassword}
+              visible={showRegisterPassword}
+              onToggle={() => setShowRegisterPassword((value) => !value)}
+              autoComplete="new-password"
+              placeholder="Repite la contraseña"
+            />
+            <FormMessage status={resetMessage} />
+            <button
+              type="submit"
+              disabled={resetBusy}
+              className="arcade-btn arcade-btn-primary w-full px-4 py-3"
+            >
+              {resetBusy ? 'Actualizando...' : 'Guardar contraseña'}
+            </button>
           </form>
         )}
 
@@ -1717,30 +2072,6 @@ function LoginPage() {
           </div>
         )}
 
-        {registerStatus?.type === 'success' && (
-          <div className="arcade-success-overlay absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 p-8 text-center">
-            <div className="relative flex h-24 w-24 items-center justify-center">
-              <span className="absolute inline-flex h-full w-full animate-ping bg-[#00e5ff]/40" />
-              <span className="relative flex h-20 w-20 animate-pop-in items-center justify-center border-4 border-[#ff2e88] bg-[#1a0033] shadow-[0_0_24px_rgba(255,46,136,0.8),inset_0_0_20px_rgba(0,229,255,0.35)]">
-                <Check
-                  className="h-10 w-10 text-[#00e5ff]"
-                  strokeWidth={2.2}
-                  aria-hidden="true"
-                />
-              </span>
-            </div>
-            <h2 className="arcade-success-title animate-fade-slide text-lg leading-relaxed sm:text-xl">
-              REGISTRO EXITOSO
-            </h2>
-            <p className="max-w-xs animate-fade-slide text-xl leading-tight text-[#d9c8ff]">
-              Tu perfil fue creado. Te llevaremos al inicio de sesión con el DNI{' '}
-              <span className="font-bold text-[#ffd319]">{pendingDni}</span>.
-            </p>
-            <div className="h-2 w-40 overflow-hidden border-2 border-[#ff2e88] bg-[#12002b]">
-              <div className="arcade-progress-fill h-full w-full origin-left animate-progress" />
-            </div>
-          </div>
-        )}
       </section>
 
       {(view === 'login' || view === 'register') && (
