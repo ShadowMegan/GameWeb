@@ -1,13 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-const isUserTyping = (target) => {
+const checkActiveElement = (target) => {
   if (!target || !(target instanceof HTMLElement)) return false
-  const tag = target.tagName.toLowerCase()
-  return (
-    tag === 'input' ||
-    tag === 'textarea' ||
-    Boolean(target.isContentEditable)
-  )
+  const name = target.tagName ? target.tagName.toLowerCase() : ''
+  return name === 'input' || name === 'textarea' || Boolean(target.isContentEditable)
 }
 
 export function useGamePause(isActive, pauseRequested = false) {
@@ -61,7 +57,7 @@ export function useGamePause(isActive, pauseRequested = false) {
     }
 
     function handleKeyDown(event) {
-      if (isUserTyping(event.target)) return
+      if (checkActiveElement(event.target)) return
       if (
         pauseRequested ||
         event.repeat ||
