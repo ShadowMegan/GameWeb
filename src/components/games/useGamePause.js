@@ -52,10 +52,14 @@ export function useGamePause(isActive, pauseRequested = false) {
 
     function handleKeyDown(event) {
       const target = event.target
+      const isInput = target instanceof HTMLInputElement
+      const isTextarea = target instanceof HTMLTextAreaElement
+      const isContentEditable =
+        target instanceof HTMLElement && target.isContentEditable === true
       const isEditing =
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+        isInput === true ||
+        isTextarea === true ||
+        isContentEditable === true
       if (
         pauseRequested ||
         event.repeat ||
