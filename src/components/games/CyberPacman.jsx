@@ -9,6 +9,12 @@ import {
   Trophy,
 } from 'lucide-react'
 import { readHighScore, saveHighScore } from '../../lib/scores.js'
+import { GamePauseButton, GamePauseOverlay } from './GamePauseControls.jsx'
+import {
+  GameTouchControlBar,
+  useTouchControlSide,
+} from './GameTouchControlBar.jsx'
+import { useGamePause } from './useGamePause.js'
 
 const ACCENT = '#ff2e88'
 const STEP_MS = 310
@@ -334,7 +340,12 @@ function LivesRow({ lives }) {
   )
 }
 
-function CyberPacman({ userId, onScore, onStateChange }) {
+function CyberPacman({
+  userId,
+  onScore,
+  onStateChange,
+  pauseRequested = false,
+}) {
   const [game, setGame] = useState(() => ({
     ...createFreshState(readHighScore(userId, 'cyber-pacman')),
     status: 'idle',
@@ -342,10 +353,15 @@ function CyberPacman({ userId, onScore, onStateChange }) {
   const score = game.score
   const status = game.status
   const highScore = game.highScore
+  const [controlSide, toggleControlSide] = useTouchControlSide()
   const beatRecord =
     status === 'over' && score > 0 && score >= highScore
   const lastSavedScoreRef = useRef(highScore)
   const gameRef = useRef(game)
+  const { isPaused, pausedRef, togglePause } = useGamePause(
+    status === 'running',
+    pauseRequested,
+  )
 
   useEffect(() => {
     gameRef.current = game
@@ -358,8 +374,12 @@ function CyberPacman({ userId, onScore, onStateChange }) {
   }, [score, onScore])
 
   useEffect(() => {
-    onStateChange?.({ status, score, level: game.level })
-  }, [status, score, game.level, onStateChange])
+    onStateChange?.({
+      status: isPaused ? 'paused' : status,
+      score,
+      level: game.level,
+    })
+  }, [isPaused, status, score, game.level, onStateChange])
 
   useEffect(() => {
     if (highScore > lastSavedScoreRef.current) {
@@ -369,7 +389,7 @@ function CyberPacman({ userId, onScore, onStateChange }) {
   }, [highScore, userId])
 
   useEffect(() => {
-    if (status !== 'running') {
+    if (status !== 'running' || isPaused) {
       return undefined
     }
 
@@ -398,13 +418,16 @@ function CyberPacman({ userId, onScore, onStateChange }) {
 
     frameId = window.requestAnimationFrame(loop)
     return () => window.cancelAnimationFrame(frameId)
-  }, [status])
+  }, [status, isPaused])
 
   function startGame() {
     setGame(createFreshState(gameRef.current.highScore))
   }
 
   function setPlayerDirection(direction) {
+    if (pausedRef.current) {
+      return
+    }
     setGame((current) =>
       current.status === 'running' &&
       (current.direction.x !== direction.x ||
@@ -416,6 +439,13 @@ function CyberPacman({ userId, onScore, onStateChange }) {
 
   useEffect(() => {
     function handleKey(event) {
+      if (
+        pausedRef.current ||
+        event.key === 'Escape' ||
+        event.key.toLowerCase() === 'p'
+      ) {
+        return
+      }
       const current = gameRef.current
       const direction = DIRECTION_BY_KEY[event.key.toLowerCase()]
       if (direction) {
@@ -461,10 +491,15 @@ function CyberPacman({ userId, onScore, onStateChange }) {
             Vidas: <LivesRow lives={game.lives} />
           </span>
         </p>
-        <p className="arcade-meta-label flex items-center gap-1.5">
-          <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Récord:{' '}
-          <span style={{ color: '#ffd319' }}>{highScore}</span>
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="arcade-meta-label flex items-center gap-1.5">
+            <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Récord:{' '}
+            <span style={{ color: '#ffd319' }}>{highScore}</span>
+          </p>
+          {status === 'running' && (
+            <GamePauseButton isPaused={isPaused} onToggle={togglePause} />
+          )}
+        </div>
       </div>
 
       <div
@@ -559,45 +594,51 @@ function CyberPacman({ userId, onScore, onStateChange }) {
             </button>
           </div>
         )}
+        {isPaused && <GamePauseOverlay onResume={togglePause} />}
       </div>
 
-      {game.status === 'running' && (
-        <div className="mx-auto grid w-fit grid-cols-3 gap-1.5 sm:hidden">
-          <span aria-hidden="true" />
-          <button
-            type="button"
-            aria-label="Mover arriba"
-            onClick={() => setPlayerDirection({ x: 0, y: -1 })}
-            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
-          >
-            <ChevronUp className="h-4 w-4" />
-          </button>
-          <span aria-hidden="true" />
-          <button
-            type="button"
-            aria-label="Mover izquierda"
-            onClick={() => setPlayerDirection({ x: -1, y: 0 })}
-            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            aria-label="Mover abajo"
-            onClick={() => setPlayerDirection({ x: 0, y: 1 })}
-            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
-          >
-            <ChevronDown className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            aria-label="Mover derecha"
-            onClick={() => setPlayerDirection({ x: 1, y: 0 })}
-            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
+      {game.status === 'running' && !isPaused && (
+        <GameTouchControlBar
+          side={controlSide}
+          onToggle={toggleControlSide}
+        >
+          <div className="grid w-fit grid-cols-3 gap-1.5">
+            <span aria-hidden="true" />
+            <button
+              type="button"
+              aria-label="Mover arriba"
+              onClick={() => setPlayerDirection({ x: 0, y: -1 })}
+              className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
+            >
+              <ChevronUp className="h-4 w-4" />
+            </button>
+            <span aria-hidden="true" />
+            <button
+              type="button"
+              aria-label="Mover izquierda"
+              onClick={() => setPlayerDirection({ x: -1, y: 0 })}
+              className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Mover abajo"
+              onClick={() => setPlayerDirection({ x: 0, y: 1 })}
+              className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Mover derecha"
+              onClick={() => setPlayerDirection({ x: 1, y: 0 })}
+              className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </GameTouchControlBar>
       )}
     </div>
   )

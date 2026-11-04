@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { RotateCcw, Trophy } from 'lucide-react'
 import { readHighScore, saveHighScore } from '../../lib/scores.js'
+import { GamePauseButton, GamePauseOverlay } from './GamePauseControls.jsx'
+import { useGamePause } from './useGamePause.js'
+import { usePausableTimeout } from './usePausableTimeout.js'
 
 const ACCENT = '#8a2be2'
 const GRID_SIZE = 8
@@ -232,7 +235,12 @@ function PiecePreview({ piece, selected, onSelect }) {
   )
 }
 
-function BlockGridPuzzle({ userId, onScore, onStateChange }) {
+function BlockGridPuzzle({
+  userId,
+  onScore,
+  onStateChange,
+  pauseRequested = false,
+}) {
   const [grid, setGrid] = useState({})
   const [hand, setHand] = useState(createHand)
   const [selectedId, setSelectedId] = useState(null)
@@ -245,7 +253,27 @@ function BlockGridPuzzle({ userId, onScore, onStateChange }) {
   )
   const beatRecord = status === 'over' && score > 0 && score >= highScore
   const flashPendingRef = useRef(false)
-  const clearTimerRef = useRef(null)
+  const pendingFlashRef = useRef(null)
+  const { isPaused, pausedRef, togglePause } = useGamePause(
+    status === 'running',
+    pauseRequested,
+  )
+
+  usePausableTimeout(
+    () => {
+      const pending = pendingFlashRef.current
+      if (!pending) {
+        return
+      }
+      pendingFlashRef.current = null
+      flashPendingRef.current = false
+      setFlashCells(null)
+      finishPlacement(removeCells(pending.filled, pending.flash), pending.hand)
+    },
+    FLASH_MS,
+    Boolean(flashCells),
+    isPaused,
+  )
 
   useEffect(() => {
     if (score > 0) {
@@ -254,22 +282,11 @@ function BlockGridPuzzle({ userId, onScore, onStateChange }) {
   }, [score, onScore])
 
   useEffect(() => {
-    onStateChange?.({ status, score })
-  }, [status, score, onStateChange])
-
-  useEffect(() => {
-    return () => {
-      if (clearTimerRef.current) {
-        window.clearTimeout(clearTimerRef.current)
-      }
-    }
-  }, [])
+    onStateChange?.({ status: isPaused ? 'paused' : status, score })
+  }, [isPaused, status, score, onStateChange])
 
   function startGame() {
-    if (clearTimerRef.current) {
-      window.clearTimeout(clearTimerRef.current)
-      clearTimerRef.current = null
-    }
+    pendingFlashRef.current = null
     flashPendingRef.current = false
     setGrid({})
     setHand(createHand())
@@ -281,14 +298,14 @@ function BlockGridPuzzle({ userId, onScore, onStateChange }) {
   }
 
   function selectPiece(nextId) {
-    if (flashPendingRef.current) {
+    if (isPaused || flashPendingRef.current) {
       return
     }
     setSelectedId(nextId)
   }
 
   function handleCellClick(row, col) {
-    if (status !== 'running' || flashPendingRef.current) {
+    if (status !== 'running' || isPaused || flashPendingRef.current) {
       return
     }
     const piece = hand.find((candidate) => candidate.id === selectedId)
@@ -333,14 +350,7 @@ function BlockGridPuzzle({ userId, onScore, onStateChange }) {
     setHand(nextHand)
     setFlashCells(flash)
     setScore(nextScore)
-
-    clearTimerRef.current = window.setTimeout(() => {
-      clearTimerRef.current = null
-      flashPendingRef.current = false
-      const cleaned = removeCells(filled, flash)
-      setFlashCells(null)
-      finishPlacement(cleaned, nextHand)
-    }, FLASH_MS)
+    pendingFlashRef.current = { filled, flash, hand: nextHand }
   }
 
   function finishPlacement(nextGrid, nextHand) {
@@ -367,15 +377,20 @@ function BlockGridPuzzle({ userId, onScore, onStateChange }) {
   )
 
   return (
-    <div className="arcade-card flex flex-col gap-4 p-4 sm:p-5">
+    <div className="arcade-card relative flex flex-col gap-4 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="arcade-meta-label">
           Puntos: <span style={{ color: ACCENT }}>{score}</span>
         </p>
-        <p className="arcade-meta-label flex items-center gap-1.5">
-          <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Récord:{' '}
-          <span style={{ color: '#ffd319' }}>{highScore}</span>
-        </p>
+        <div className="relative z-30 flex items-center gap-2">
+          <p className="arcade-meta-label flex items-center gap-1.5">
+            <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Récord:{' '}
+            <span style={{ color: '#ffd319' }}>{highScore}</span>
+          </p>
+          {status === 'running' && (
+            <GamePauseButton isPaused={isPaused} onToggle={togglePause} />
+          )}
+        </div>
       </div>
 
       <div
@@ -520,6 +535,7 @@ function BlockGridPuzzle({ userId, onScore, onStateChange }) {
         el borde neón sobre el destino antes de soltar la pieza.
         Cada celda colocada suma 1 y cada línea completa suma 10.
       </p>
+      {isPaused && <GamePauseOverlay onResume={togglePause} />}
     </div>
   )
 }

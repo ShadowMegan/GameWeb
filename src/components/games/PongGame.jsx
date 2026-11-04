@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Trophy } from 'lucide-react'
 import { readHighScore, saveHighScore } from '../../lib/scores.js'
+import { GamePauseButton, GamePauseOverlay } from './GamePauseControls.jsx'
+import {
+  GameTouchControlBar,
+  useTouchControlSide,
+} from './GameTouchControlBar.jsx'
+import { useGamePause } from './useGamePause.js'
 
 const GAME_ID = 'pong'
 const ACCENT = '#00e5ff'
@@ -269,7 +275,7 @@ function drawGame(ctx, game) {
   ctx.restore()
 }
 
-function PongGame({ userId, onScore, onStateChange }) {
+function PongGame({ userId, onScore, onStateChange, pauseRequested = false }) {
   const canvasRef = useRef(null)
   const gameRef = useRef(createGame())
   const keysRef = useRef({ up: false, down: false })
@@ -280,6 +286,18 @@ function PongGame({ userId, onScore, onStateChange }) {
     readHighScore(userId, GAME_ID),
   )
   const lastSavedScoreRef = useRef(highScore)
+  const [controlSide, toggleControlSide] = useTouchControlSide()
+  const { isPaused, pausedRef, togglePause } = useGamePause(
+    status === 'running',
+    pauseRequested,
+  )
+
+  useEffect(() => {
+    if (isPaused) {
+      keysRef.current.up = false
+      keysRef.current.down = false
+    }
+  }, [isPaused])
 
   const startGame = useCallback(() => {
     const nextGame = createGame()
@@ -309,9 +327,16 @@ function PongGame({ userId, onScore, onStateChange }) {
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
 
     let frameId = 0
+    drawGame(context, gameRef.current)
+    if (status !== 'running' || isPaused) {
+      return undefined
+    }
     let lastTime = window.performance.now()
 
     function frame(now) {
+      if (pausedRef.current) {
+        return
+      }
       const dt = Math.min((now - lastTime) / 1000, 0.05)
       lastTime = now
 
@@ -338,7 +363,7 @@ function PongGame({ userId, onScore, onStateChange }) {
 
     frameId = window.requestAnimationFrame(frame)
     return () => window.cancelAnimationFrame(frameId)
-  }, [])
+  }, [status, isPaused])
 
   useEffect(() => {
     if (scores.player > 0) {
@@ -347,8 +372,12 @@ function PongGame({ userId, onScore, onStateChange }) {
   }, [scores.player, onScore])
 
   useEffect(() => {
-    onStateChange?.({ status, score: scores.player, level: 1 })
-  }, [status, scores.player, onStateChange])
+    onStateChange?.({
+      status: isPaused ? 'paused' : status,
+      score: scores.player,
+      level: 1,
+    })
+  }, [isPaused, status, scores.player, onStateChange])
 
   useEffect(() => {
     if (status !== 'over' || scores.player <= 0) {
@@ -365,6 +394,13 @@ function PongGame({ userId, onScore, onStateChange }) {
   useEffect(() => {
     function handleKeyDown(event) {
       const key = event.key.toLowerCase()
+      if (
+        pausedRef.current ||
+        key === 'escape' ||
+        key === 'p'
+      ) {
+        return
+      }
       if (key === 'arrowup' || key === 'w') {
         event.preventDefault()
         keysRef.current.up = true
@@ -403,7 +439,7 @@ function PongGame({ userId, onScore, onStateChange }) {
   }, [startGame])
 
   function handlePointerMove(event) {
-    if (gameRef.current.status !== 'running') {
+    if (gameRef.current.status !== 'running' || pausedRef.current) {
       return
     }
     const rect = event.currentTarget.getBoundingClientRect()
@@ -420,6 +456,9 @@ function PongGame({ userId, onScore, onStateChange }) {
   }
 
   function setTouchDirection(direction, pressed) {
+    if (pausedRef.current) {
+      return
+    }
     const key = direction === 'up' ? 'up' : 'down'
     keysRef.current[key] = pressed
   }
@@ -442,10 +481,15 @@ function PongGame({ userId, onScore, onStateChange }) {
             <span style={{ color: '#ffd319' }}>{WIN_SCORE}</span>
           </span>
         </p>
-        <p className="arcade-meta-label flex items-center gap-1.5">
-          <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Récord:{' '}
-          <span style={{ color: '#ffd319' }}>{highScore}</span>
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="arcade-meta-label flex items-center gap-1.5">
+            <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Récord:{' '}
+            <span style={{ color: '#ffd319' }}>{highScore}</span>
+          </p>
+          {status === 'running' && (
+            <GamePauseButton isPaused={isPaused} onToggle={togglePause} />
+          )}
+        </div>
       </div>
 
       <div
@@ -516,33 +560,39 @@ function PongGame({ userId, onScore, onStateChange }) {
             )}
           </div>
         )}
+        {isPaused && <GamePauseOverlay onResume={togglePause} />}
       </div>
 
-      {status === 'running' && (
-        <div className="mx-auto flex w-full max-w-xs items-center justify-center gap-2 sm:hidden">
-          <button
-            type="button"
-            aria-label="Mover paleta hacia arriba"
-            onPointerDown={() => setTouchDirection('up', true)}
-            onPointerUp={() => setTouchDirection('up', false)}
-            onPointerLeave={() => setTouchDirection('up', false)}
-            onPointerCancel={() => setTouchDirection('up', false)}
-            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex flex-1 justify-center"
-          >
-            <ArrowUp className="h-4 w-4" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            aria-label="Mover paleta hacia abajo"
-            onPointerDown={() => setTouchDirection('down', true)}
-            onPointerUp={() => setTouchDirection('down', false)}
-            onPointerLeave={() => setTouchDirection('down', false)}
-            onPointerCancel={() => setTouchDirection('down', false)}
-            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex flex-1 justify-center"
-          >
-            <ArrowDown className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
+      {status === 'running' && !isPaused && (
+        <GameTouchControlBar
+          side={controlSide}
+          onToggle={toggleControlSide}
+        >
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="Mover paleta hacia arriba"
+              onPointerDown={() => setTouchDirection('up', true)}
+              onPointerUp={() => setTouchDirection('up', false)}
+              onPointerLeave={() => setTouchDirection('up', false)}
+              onPointerCancel={() => setTouchDirection('up', false)}
+              className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
+            >
+              <ArrowUp className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              aria-label="Mover paleta hacia abajo"
+              onPointerDown={() => setTouchDirection('down', true)}
+              onPointerUp={() => setTouchDirection('down', false)}
+              onPointerLeave={() => setTouchDirection('down', false)}
+              onPointerCancel={() => setTouchDirection('down', false)}
+              className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
+            >
+              <ArrowDown className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        </GameTouchControlBar>
       )}
     </div>
   )

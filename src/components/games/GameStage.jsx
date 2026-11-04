@@ -119,7 +119,14 @@ class GameRenderBoundary extends Component {
   }
 }
 
-function GameStage({ game, userId, onExit, onScore, onStateChange }) {
+function GameStage({
+  game,
+  userId,
+  onExit,
+  onScore,
+  onStateChange,
+  pauseRequested = false,
+}) {
   const [attempt, setAttempt] = useState(0)
   const [phase, setPhase] = useState('loading')
   const [progress, setProgress] = useState(0)
@@ -234,6 +241,7 @@ function GameStage({ game, userId, onExit, onScore, onStateChange }) {
         userId={userId}
         onScore={onScore}
         onStateChange={onStateChange}
+        pauseRequested={pauseRequested}
       />
     </GameRenderBoundary>
   )

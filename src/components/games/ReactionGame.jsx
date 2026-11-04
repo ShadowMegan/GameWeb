@@ -1,6 +1,18 @@
 /* eslint-disable */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Play, RotateCcw, Target, Timer, Trophy } from 'lucide-react'
+import {
+  Play,
+  RotateCcw,
+  Target,
+  Timer,
+  Trophy,
+} from 'lucide-react'
+import { GamePauseButton, GamePauseOverlay } from './GamePauseControls.jsx'
+import {
+  GameTouchControlBar,
+  useTouchControlSide,
+} from './GameTouchControlBar.jsx'
+import { useGamePause } from './useGamePause.js'
 
 const ROUND_MS = 20000
 const MOVE_INTERVAL_MS = 1100
@@ -14,13 +26,18 @@ function randomTarget() {
   }
 }
 
-function ReactionGame({ onScore, onStateChange }) {
+function ReactionGame({ onScore, onStateChange, pauseRequested = false }) {
   const [status, setStatus] = useState('idle')
   const [score, setScore] = useState(0)
   const [timeLeft, setTimeLeft] = useState(ROUND_MS)
   const [target, setTarget] = useState(null)
+  const [controlSide, toggleControlSide] = useTouchControlSide()
   const scoreRef = useRef(0)
   const timeLeftRef = useRef(ROUND_MS)
+  const { isPaused, pausedRef, togglePause } = useGamePause(
+    status === 'running',
+    pauseRequested,
+  )
 
   const report = useCallback(
     (nextStatus, nextScore) => {
@@ -34,7 +51,7 @@ function ReactionGame({ onScore, onStateChange }) {
   )
 
   useEffect(() => {
-    if (status !== 'running') {
+    if (status !== 'running' || isPaused) {
       return undefined
     }
 
@@ -57,7 +74,7 @@ function ReactionGame({ onScore, onStateChange }) {
       window.clearInterval(tick)
       window.clearInterval(move)
     }
-  }, [status, report])
+  }, [status, isPaused, report])
 
   function startRound() {
     scoreRef.current = 0
@@ -70,7 +87,7 @@ function ReactionGame({ onScore, onStateChange }) {
   }
 
   function hitTarget() {
-    if (status !== 'running') {
+    if (status !== 'running' || pausedRef.current) {
       return
     }
     const nextScore = scoreRef.current + 10
@@ -80,6 +97,47 @@ function ReactionGame({ onScore, onStateChange }) {
     onScore?.(nextScore)
     report('running', nextScore)
   }
+
+  function handlePrimaryAction() {
+    if (pausedRef.current) {
+      return
+    }
+    if (status === 'running') {
+      hitTarget()
+      return
+    }
+    startRound()
+  }
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (
+        isPaused ||
+        event.key === 'Escape' ||
+        event.key.toLowerCase() === 'p' ||
+        event.key !== ' ' &&
+        !(event.key === 'Enter' && status !== 'running')
+      ) {
+        return
+      }
+      if (event.repeat) {
+        return
+      }
+      event.preventDefault()
+      handlePrimaryAction()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [status, isPaused])
+
+  useEffect(() => {
+    onStateChange?.({
+      status: isPaused ? 'paused' : status,
+      score,
+      level: 1,
+    })
+  }, [isPaused, status, score, onStateChange])
 
   const seconds = Math.ceil(timeLeft / 1000)
   const isRunning = status === 'running'
@@ -94,7 +152,7 @@ function ReactionGame({ onScore, onStateChange }) {
           </p>
           <p className="arcade-hint mt-1">
             Toca los objetivos antes de que cambien de posición. Ronda de 20
-            segundos.
+            segundos. Usa Espacio para golpear o Enter para iniciar.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -106,6 +164,9 @@ function ReactionGame({ onScore, onStateChange }) {
             <Trophy className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
             {score} pts
           </span>
+          {isRunning && (
+            <GamePauseButton isPaused={isPaused} onToggle={togglePause} />
+          )}
         </div>
       </div>
 
@@ -129,6 +190,8 @@ function ReactionGame({ onScore, onStateChange }) {
           </button>
         )}
 
+        {isPaused && <GamePauseOverlay onResume={togglePause} />}
+
         {!isRunning && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
             <Target className="h-12 w-12 text-[#ff2e88]" aria-hidden="true" />
@@ -144,7 +207,7 @@ function ReactionGame({ onScore, onStateChange }) {
             </div>
             <button
               type="button"
-              onClick={startRound}
+              onClick={handlePrimaryAction}
               className="arcade-btn arcade-btn-primary arcade-btn-sm flex items-center gap-2"
             >
               {status === 'over' ? (
@@ -157,6 +220,24 @@ function ReactionGame({ onScore, onStateChange }) {
           </div>
         )}
       </div>
+
+      {isRunning && !isPaused && (
+        <GameTouchControlBar
+          side={controlSide}
+          onToggle={toggleControlSide}
+        >
+          <button
+            type="button"
+            onClick={handlePrimaryAction}
+            aria-label="Golpear objetivo (espacio)"
+            className="arcade-btn arcade-btn-primary arcade-btn-sm flex items-center gap-2 whitespace-nowrap"
+            style={{ touchAction: 'manipulation' }}
+          >
+            <Target className="h-4 w-4" aria-hidden="true" />
+            Tocar objetivo
+          </button>
+        </GameTouchControlBar>
+      )}
     </div>
   )
 }

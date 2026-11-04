@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   AlertCircle,
   ArrowUpDown,
@@ -73,7 +74,7 @@ const CATEGORY_ICONS = {
   Estrategia: Brain,
 }
 
-const ACTIVE_GAME_STATUSES = new Set(['running', 'levelup'])
+const ACTIVE_GAME_STATUSES = new Set(['running', 'levelup', 'paused'])
 
 function normalizeText(value) {
   return value
@@ -248,13 +249,13 @@ function EmptyCatalog({ query, category, onReset }) {
 }
 
 function ExitConfirmDialog({ gameName, score, onSave, onDiscard, onCancel }) {
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#07030fe6] p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#07030fe6] p-4"
       role="presentation"
     >
       <div
-        className="arcade-panel w-full max-w-md p-6"
+        className="arcade-panel my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto p-4 sm:p-6"
         role="dialog"
         aria-modal="true"
         aria-labelledby="exit-dialog-title"
@@ -303,7 +304,8 @@ function ExitConfirmDialog({ gameName, score, onSave, onDiscard, onCancel }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -527,32 +529,34 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
   }
 
   return (
-    <div className="animate-fade-slide flex flex-col gap-5">
-      <div className="arcade-card flex flex-wrap items-center gap-4 p-4">
-        <div className="relative shrink-0">
+    <div className="animate-fade-slide flex flex-col gap-3 sm:gap-5">
+      <div className="arcade-card flex flex-col gap-3 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:p-4">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <ArcadeAvatar user={user} size="sm" />
           <button
             type="button"
             onClick={() => setCreateGameOpen(true)}
             aria-label="Publicar nuevo juego"
             title="Publicar nuevo juego"
-            className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#07030f] bg-[#ff2e88] text-white shadow-[0_0_12px_rgba(255,46,136,0.9)] transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00e5ff]"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-[#07030f] bg-[#ff2e88] text-white shadow-[0_0_12px_rgba(255,46,136,0.9)] transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00e5ff]"
           >
-            <Plus className="h-4 w-4" aria-hidden="true" />
+            <Plus className="h-5 w-5" aria-hidden="true" />
           </button>
+          <div className="min-w-0 flex-1">
+            <p className="arcade-profile-name truncate text-[0.7rem] sm:text-[0.8rem]">
+              {user.name}
+            </p>
+            <p className="arcade-hint truncate text-sm sm:text-base">
+              @{user.username} · {isAdmin ? 'Administrador' : `DNI ${user.dni}`}
+            </p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <p className="arcade-profile-name truncate">{user.name}</p>
-          <p className="arcade-hint truncate">
-            @{user.username} · {isAdmin ? 'Administrador' : `DNI ${user.dni}`}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
           {isAdmin && (
             <button
               type="button"
               onClick={onOpenAdmin}
-              className="arcade-btn arcade-btn-primary arcade-btn-sm flex items-center gap-2"
+              className="arcade-btn arcade-btn-primary arcade-btn-sm flex flex-1 items-center justify-center gap-2 px-2 sm:flex-none sm:px-3"
             >
               <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Panel admin
             </button>
@@ -561,7 +565,7 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
             <button
               type="button"
               onClick={() => requestExit('profile')}
-              className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-2"
+              className="arcade-btn arcade-btn-secondary arcade-btn-sm flex flex-1 items-center justify-center gap-2 px-2 sm:flex-none sm:px-3"
             >
               <User className="h-4 w-4" aria-hidden="true" /> Mi perfil
             </button>
@@ -569,7 +573,7 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
           <button
             type="button"
             onClick={() => requestExit('logout')}
-            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex items-center gap-2"
+            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex flex-1 items-center justify-center gap-2 px-2 sm:flex-none sm:px-3"
           >
             <LogOut className="h-4 w-4" aria-hidden="true" /> Cerrar sesión
           </button>
@@ -646,6 +650,7 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
                     onExit={() => requestExit('catalog')}
                     onScore={handleActiveGameScore}
                     onStateChange={handleSessionChange}
+                    pauseRequested={exitPromptOpen}
                   />
                   <GameReviews
                     key={activeGameData.id}
@@ -734,7 +739,7 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
           </p>
 
           {filteredGames.length > 0 ? (
-            <ul className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr))]">
+            <ul className="grid gap-3 sm:gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr))]">
               {filteredGames.map((game) => (
                 <GameCard
                   key={game.id}

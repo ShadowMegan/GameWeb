@@ -7,6 +7,13 @@ import {
   Trophy,
 } from 'lucide-react'
 import { readHighScore, saveHighScore } from '../../lib/scores.js'
+import { GamePauseButton, GamePauseOverlay } from './GamePauseControls.jsx'
+import {
+  GameTouchControlBar,
+  useTouchControlSide,
+} from './GameTouchControlBar.jsx'
+import { useGamePause } from './useGamePause.js'
+import { usePausableTimeout } from './usePausableTimeout.js'
 
 const ACCENT = '#00e5ff'
 const GRID_SIZE = 15
@@ -327,17 +334,29 @@ function BoardCell({ x, y, snake, apple, obstacleSet }) {
   )
 }
 
-function RetroSnake({ userId, onScore, onStateChange }) {
+function RetroSnake({ userId, onScore, onStateChange, pauseRequested = false }) {
   const [game, setGame] = useState(() => ({
     ...createSnakeGame(readHighScore(userId, 'retro-snake')),
     status: 'idle',
   }))
   const { snake, apple, score, highScore, status, level, applesEaten, applesGoal } = game
   const beatRecord = status === 'over' && score > 0 && score >= highScore
+  const [controlSide, toggleControlSide] = useTouchControlSide()
   const lastSavedScoreRef = useRef(highScore)
   const gameRef = useRef(game)
   const obstacleSet = new Set(
     game.obstacles.map((cell) => `${cell.x},${cell.y}`),
+  )
+  const { isPaused, pausedRef, togglePause } = useGamePause(
+    status === 'running' || status === 'levelup',
+    pauseRequested,
+  )
+
+  usePausableTimeout(
+    () => setGame(createLevelState),
+    1300,
+    status === 'levelup',
+    isPaused,
   )
 
   useEffect(() => {
@@ -351,8 +370,12 @@ function RetroSnake({ userId, onScore, onStateChange }) {
   }, [score, onScore])
 
   useEffect(() => {
-    onStateChange?.({ status, score, level })
-  }, [status, score, level, onStateChange])
+    onStateChange?.({
+      status: isPaused ? 'paused' : status,
+      score,
+      level,
+    })
+  }, [isPaused, status, score, level, onStateChange])
 
   useEffect(() => {
     if (highScore > lastSavedScoreRef.current) {
@@ -362,28 +385,18 @@ function RetroSnake({ userId, onScore, onStateChange }) {
   }, [highScore, userId])
 
   useEffect(() => {
-    if (status !== 'running') {
+    if (status !== 'running' || isPaused) {
       return undefined
     }
     const timer = window.setInterval(() => {
       setGame(stepSnake)
     }, STEP_MS)
     return () => window.clearInterval(timer)
-  }, [status])
-
-  useEffect(() => {
-    if (status !== 'levelup') {
-      return undefined
-    }
-    const timer = window.setTimeout(() => {
-      setGame(createLevelState)
-    }, 1300)
-    return () => window.clearTimeout(timer)
-  }, [status])
+  }, [status, isPaused])
 
   function queueDirection(next) {
     setGame((current) => {
-      if (current.status !== 'running') {
+      if (current.status !== 'running' || pausedRef.current) {
         return current
       }
       const last = current.pending.length
@@ -404,6 +417,13 @@ function RetroSnake({ userId, onScore, onStateChange }) {
 
   useEffect(() => {
     function handleKey(event) {
+      if (
+        pausedRef.current ||
+        event.key === 'Escape' ||
+        event.key.toLowerCase() === 'p'
+      ) {
+        return
+      }
       const current = gameRef.current
       const direction = DIRECTION_BY_KEY[event.key.toLowerCase()]
       if (direction) {
@@ -443,10 +463,15 @@ function RetroSnake({ userId, onScore, onStateChange }) {
             </span>
           </span>
         </p>
-        <p className="arcade-meta-label flex items-center gap-1.5">
-          <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Récord:{' '}
-          <span style={{ color: '#ffd319' }}>{highScore}</span>
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="arcade-meta-label flex items-center gap-1.5">
+            <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Récord:{' '}
+            <span style={{ color: '#ffd319' }}>{highScore}</span>
+          </p>
+          {(status === 'running' || status === 'levelup') && (
+            <GamePauseButton isPaused={isPaused} onToggle={togglePause} />
+          )}
+        </div>
       </div>
 
       <div
@@ -513,45 +538,51 @@ function RetroSnake({ userId, onScore, onStateChange }) {
             )}
           </div>
         )}
+        {isPaused && <GamePauseOverlay onResume={togglePause} />}
       </div>
 
-      {status === 'running' && (
-        <div className="mx-auto grid w-fit grid-cols-3 gap-1.5 sm:hidden">
-          <span aria-hidden="true" />
-          <button
-            type="button"
-            aria-label="Mover arriba"
-            onClick={() => queueDirection(UP)}
-            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
-          >
-            <ChevronUp className="h-4 w-4" />
-          </button>
-          <span aria-hidden="true" />
-          <button
-            type="button"
-            aria-label="Mover izquierda"
-            onClick={() => queueDirection(LEFT)}
-            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            aria-label="Mover abajo"
-            onClick={() => queueDirection(DOWN)}
-            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
-          >
-            <ChevronDown className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            aria-label="Mover derecha"
-            onClick={() => queueDirection(RIGHT)}
-            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
+      {status === 'running' && !isPaused && (
+        <GameTouchControlBar
+          side={controlSide}
+          onToggle={toggleControlSide}
+        >
+          <div className="grid w-fit grid-cols-3 gap-1.5">
+            <span aria-hidden="true" />
+            <button
+              type="button"
+              aria-label="Mover arriba"
+              onClick={() => queueDirection(UP)}
+              className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
+            >
+              <ChevronUp className="h-4 w-4" />
+            </button>
+            <span aria-hidden="true" />
+            <button
+              type="button"
+              aria-label="Mover izquierda"
+              onClick={() => queueDirection(LEFT)}
+              className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Mover abajo"
+              onClick={() => queueDirection(DOWN)}
+              className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Mover derecha"
+              onClick={() => queueDirection(RIGHT)}
+              className="arcade-btn arcade-btn-secondary arcade-btn-sm flex justify-center"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </GameTouchControlBar>
       )}
     </div>
   )
