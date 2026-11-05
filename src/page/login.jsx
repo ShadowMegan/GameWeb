@@ -152,15 +152,19 @@ function validateEmail(rawEmail) {
 }
 
 async function readAuthApiResponse(response, fallbackMessage) {
+  const responseText = await response.text()
   let result
   try {
-    result = await response.json()
-  } catch {
+    result = JSON.parse(responseText)
+  } catch (error) {
+    console.error('Respuesta del servidor:', responseText)
     throw new Error(
       'El backend de autenticación devolvió una respuesta no válida. Verifica VITE_AUTH_API_URL y que el servicio esté disponible.',
+      { cause: error },
     )
   }
   if (!result || typeof result !== 'object') {
+    console.error('Respuesta del servidor:', responseText)
     throw new Error(fallbackMessage)
   }
 
@@ -170,6 +174,7 @@ async function readAuthApiResponse(response, fallbackMessage) {
     result.verified === false ||
     result.valid === false
   ) {
+    console.error('Respuesta del servidor:', responseText)
     throw new Error(result.message || result.error || fallbackMessage)
   }
 
@@ -177,18 +182,20 @@ async function readAuthApiResponse(response, fallbackMessage) {
 }
 
 async function requestAuthApi(endpoint, payload, fallbackMessage) {
+  const cleanBase = API_URL.replace(/\/+$/, '')
   let response
 
   try {
-    response = await fetch(`${API_URL}/${endpoint}`, {
+    response = await fetch(`${cleanBase}/${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
   } catch (error) {
     if (error instanceof TypeError) {
+      console.error('Error al conectar con el backend de autenticación:', error)
       throw new Error(
-        `No se pudo conectar con el backend de autenticación (${API_URL}). Verifica VITE_AUTH_API_URL, que el backend esté disponible y su configuración CORS.`,
+        `No se pudo conectar con el backend de autenticación (${cleanBase}). Verifica VITE_AUTH_API_URL, que el backend esté disponible y su configuración CORS.`,
         { cause: error },
       )
     }
