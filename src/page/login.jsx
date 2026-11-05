@@ -31,7 +31,9 @@ import { markUserOffline, markUserOnline } from '../lib/presence.js'
 import { readHighScore, readPlayedGames } from '../lib/scores.js'
 
 const USERS_KEY = 'gameweb_users'
-const EMAIL_REGEX = /^[^\s@]+@gmail\.com$/i
+const AUTH_API_URL = 'http://localhost:5000/api/auth'
+const OTP_TTL_MS = 30000
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
 const DNI_LENGTH = 8
 const VERIFICATION_CODE_TTL_MS = 30000
 const MIN_PASSWORD_LENGTH = 8
@@ -146,10 +148,53 @@ function validateEmail(rawEmail) {
   return ''
 }
 
+async function readAuthApiResponse(response, fallbackMessage) {
+  let result
+  try {
+    result = await response.json()
+  } catch {
+    throw new Error('El servidor devolvió una respuesta no válida.')
+  }
+  if (!result || typeof result !== 'object') {
+    throw new Error(fallbackMessage)
+  }
+
+  if (
+    !response.ok ||
+    result.success === false ||
+    result.verified === false ||
+    result.valid === false
+  ) {
+    throw new Error(result.message || result.error || fallbackMessage)
+  }
+
+  return result
+}
+
+async function sendOtpCode(email) {
+  const response = await fetch(`${AUTH_API_URL}/send-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+
+  return readAuthApiResponse(response, 'No se pudo enviar el código OTP.')
+}
+
+async function verifyOtpCode(email, code) {
+  const response = await fetch(`${AUTH_API_URL}/verify-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code }),
+  })
+
+  return readAuthApiResponse(response, 'El código OTP no es válido.')
+}
+
 function createVerificationCode() {
-  const value = new Uint32Array(1)
-  window.crypto.getRandomValues(value)
-  return String(value[0] % 1000000).padStart(6, '0')
+  const values = new Uint32Array(1)
+  window.crypto.getRandomValues(values)
+  return String(values[0] % 1000000).padStart(6, '0')
 }
 
 function validateDni(rawDni) {
@@ -413,6 +458,7 @@ function LoginPage() {
   const [users, setUsers] = useState(() => loadUsers())
   const [view, setView] = useState('login')
   const [sessionDni, setSessionDni] = useState('')
+  const [apiSessionUser, setApiSessionUser] = useState(null)
   const { themeId } = useTheme()
 
   const [loginForm, setLoginForm] = useState(EMPTY_LOGIN_FORM)
@@ -420,6 +466,20 @@ function LoginPage() {
   const [loginMessage, setLoginMessage] = useState(null)
   const [loginBusy, setLoginBusy] = useState(false)
   const [showLoginPassword, setShowLoginPassword] = useState(false)
+
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [verification, setVerification] = useState(null)
+  const [verificationCode, setVerificationCode] = useState('')
+  const [verificationMessage, setVerificationMessage] = useState(null)
+  const [verificationRemaining, setVerificationRemaining] = useState(0)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetForm, setResetForm] = useState({
+    password: '',
+    confirmPassword: '',
+  })
+  const [resetErrors, setResetErrors] = useState({})
+  const [resetMessage, setResetMessage] = useState(null)
+  const [resetBusy, setResetBusy] = useState(false)
 
   const [adminForm, setAdminForm] = useState(EMPTY_ADMIN_FORM)
   const [adminErrors, setAdminErrors] = useState({})
@@ -431,19 +491,12 @@ function LoginPage() {
   const [registerStatus, setRegisterStatus] = useState(null)
   const [registerBusy, setRegisterBusy] = useState(false)
   const [showRegisterPassword, setShowRegisterPassword] = useState(false)
-  const [verification, setVerification] = useState(null)
-  const [verificationCode, setVerificationCode] = useState('')
-  const [verificationRemaining, setVerificationRemaining] = useState(0)
-  const [verificationMessage, setVerificationMessage] = useState(null)
-  const [forgotEmail, setForgotEmail] = useState('')
-  const [resetEmail, setResetEmail] = useState('')
-  const [resetForm, setResetForm] = useState({
-    password: '',
-    confirmPassword: '',
-  })
-  const [resetErrors, setResetErrors] = useState({})
-  const [resetMessage, setResetMessage] = useState(null)
-  const [resetBusy, setResetBusy] = useState(false)
+  const [pendingRegistration, setPendingRegistration] = useState(null)
+  const [otpCode, setOtpCode] = useState('')
+  const [otpStatus, setOtpStatus] = useState(null)
+  const [otpBusy, setOtpBusy] = useState(false)
+  const [otpExpiresAt, setOtpExpiresAt] = useState(0)
+  const [otpRemaining, setOtpRemaining] = useState(0)
 
   const [profileForm, setProfileForm] = useState({
     username: '',
@@ -456,7 +509,11 @@ function LoginPage() {
 
   const [isAdmin, setIsAdmin] = useState(false)
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false)
-  const sessionUser = isAdmin ? ADMIN_USER : sessionDni ? users[sessionDni] : null
+  const sessionUser = isAdmin
+    ? ADMIN_USER
+    : sessionDni
+      ? users[sessionDni]
+      : apiSessionUser
   const sessionUserId = sessionUser?.dni ?? ''
   const catalog = readCatalog()
   const sessionPlayedGames = sessionUser
@@ -490,22 +547,28 @@ function LoginPage() {
   }, [sessionUserId])
 
   useEffect(() => {
+    if (view !== 'verify-email' || otpExpiresAt === 0) {
+      return undefined
+    }
+
+    function updateCountdown() {
+      setOtpRemaining(Math.max(0, Math.ceil((otpExpiresAt - Date.now()) / 1000)))
+    }
+
+    updateCountdown()
+    const timer = window.setInterval(updateCountdown, 250)
+    return () => window.clearInterval(timer)
+  }, [view, otpExpiresAt])
+
+  useEffect(() => {
     if (view !== 'verify-email' || !verification) {
       return undefined
     }
 
     function updateCountdown() {
-      const remaining = Math.max(
-        0,
-        Math.ceil((verification.expiresAt - Date.now()) / 1000),
+      setVerificationRemaining(
+        Math.max(0, Math.ceil((verification.expiresAt - Date.now()) / 1000)),
       )
-      setVerificationRemaining(remaining)
-      if (remaining === 0) {
-        setVerificationMessage({
-          type: 'error',
-          message: 'El código venció. Solicita uno nuevo para continuar.',
-        })
-      }
     }
 
     updateCountdown()
@@ -591,6 +654,7 @@ function LoginPage() {
 
     setIsAdmin(true)
     setSessionDni('admin')
+    setApiSessionUser(null)
     setDeleteAccountOpen(false)
     setAdminForm(EMPTY_ADMIN_FORM)
     setAdminErrors({})
@@ -616,14 +680,12 @@ function LoginPage() {
     setRegisterStatus(null)
   }
 
-  function issueVerification(purpose, email, payload = null) {
+  function issueVerification(email) {
     const code = createVerificationCode()
     setVerification({
-      purpose,
       email,
       code,
       expiresAt: Date.now() + VERIFICATION_CODE_TTL_MS,
-      payload,
     })
     setVerificationCode('')
     setVerificationRemaining(30)
@@ -638,14 +700,10 @@ function LoginPage() {
     if (!verification || verificationRemaining > 0) {
       return
     }
-    issueVerification(
-      verification.purpose,
-      verification.email,
-      verification.payload,
-    )
+    issueVerification(verification.email)
   }
 
-  async function handleVerificationSubmit(event) {
+  function handleVerificationSubmit(event) {
     event.preventDefault()
     if (!verification) {
       return
@@ -673,60 +731,6 @@ function LoginPage() {
       return
     }
 
-    if (verification.purpose === 'register') {
-      const form = verification.payload
-      setRegisterBusy(true)
-      try {
-        const salt = createSalt()
-        const passwordHash = await hashPassword(form.password, salt)
-        const dni = form.dni
-        const typedUsername = form.username.trim()
-        const username = typedUsername
-          ? typedUsername
-          : createUniqueUsername(
-              slugifyUsername(form.email.split('@')[0] || form.name),
-              users,
-              dni,
-            )
-        const nextUsers = {
-          ...users,
-          [dni]: {
-            dni,
-            name: form.name.trim(),
-            phone: form.phone.trim(),
-            email: form.email.trim().toLowerCase(),
-            gender: form.gender,
-            username,
-            description: form.description.trim(),
-            salt,
-            passwordHash,
-            createdAt: new Date().toISOString(),
-          },
-        }
-
-        setUsers(nextUsers)
-        saveUsers(nextUsers)
-        setLoginForm({ identifier: form.email.trim().toLowerCase(), password: '' })
-        setLoginMessage({
-          type: 'success',
-          message: 'Correo verificado y registro completado. Ya puedes iniciar sesión.',
-        })
-        setRegisterForm(EMPTY_REGISTER_FORM)
-        setRegisterErrors({})
-        setRegisterStatus(null)
-        setVerification(null)
-        setView('login')
-      } catch {
-        setVerificationMessage({
-          type: 'error',
-          message: 'No se pudo completar el registro. Inténtalo nuevamente.',
-        })
-      } finally {
-        setRegisterBusy(false)
-      }
-      return
-    }
-
     setResetEmail(verification.email)
     setResetForm({ password: '', confirmPassword: '' })
     setResetErrors({})
@@ -751,7 +755,7 @@ function LoginPage() {
       })
       return
     }
-    issueVerification('reset-password', email)
+    issueVerification(email)
   }
 
   function handleResetChange(event) {
@@ -845,52 +849,88 @@ function LoginPage() {
       return
     }
 
-    const user = Object.values(users).find(
-      (candidate) => candidate.email === identifier.toLowerCase(),
-    )
-
-    if (!user) {
-      setLoginMessage({
-        type: 'error',
-        message: 'No existe una cuenta con ese correo. Regístrate para crear tu perfil.',
-      })
-      return
-    }
-
     setLoginBusy(true)
     try {
-      const passwordHash = await hashPassword(loginForm.password, user.salt)
-      if (passwordHash !== user.passwordHash) {
-        setLoginMessage({
-          type: 'error',
-          message: 'Contraseña incorrecta. Verifica tus datos e inténtalo otra vez.',
-        })
-        return
+      const response = await fetch(`${AUTH_API_URL}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier,
+          password: loginForm.password,
+        }),
+      })
+      const data = await readAuthApiResponse(
+        response,
+        'No se pudo iniciar sesión.',
+      )
+      if (typeof data.token !== 'string' || !data.token) {
+        throw new Error('El servidor no devolvió un token de acceso válido.')
+      }
+
+      window.localStorage.setItem('token', data.token)
+
+      let user = users[identifier]
+      if (!user && identifier.includes('@')) {
+        user = Object.values(users).find(
+          (candidate) => candidate.email === identifier.toLowerCase(),
+        )
       }
 
       setIsAdmin(false)
-      setSessionDni(user.dni)
-      setProfileForm({
-        username: user.username,
-        description: user.description,
-        avatar: user.avatar || 'gamepad',
-        neonColor: user.neonColor || 'pink',
-      })
+      if (user) {
+        setSessionDni(user.dni)
+        setApiSessionUser(null)
+        setProfileForm({
+          username: user.username,
+          description: user.description,
+          avatar: user.avatar || 'gamepad',
+          neonColor: user.neonColor || 'pink',
+        })
+      } else {
+        const apiUser =
+          data.user && typeof data.user === 'object' ? data.user : data
+        const username =
+          apiUser.username ||
+          (identifier.includes('@') ? identifier.split('@')[0] : identifier)
+        const authenticatedUser = {
+          dni: String(apiUser.dni ?? apiUser.id ?? identifier),
+          name: apiUser.name || username,
+          username,
+          email: apiUser.email || (identifier.includes('@') ? identifier : ''),
+          phone: apiUser.phone || '',
+          gender: apiUser.gender || 'Prefiero no decirlo',
+          description: apiUser.description || '',
+          avatar: apiUser.avatar || 'gamepad',
+          neonColor: apiUser.neonColor || 'pink',
+          role: apiUser.role || 'user',
+        }
+        setSessionDni('')
+        setApiSessionUser(authenticatedUser)
+        setProfileForm({
+          username: authenticatedUser.username,
+          description: authenticatedUser.description,
+          avatar: authenticatedUser.avatar,
+          neonColor: authenticatedUser.neonColor,
+        })
+      }
       setProfileErrors({})
       setProfileStatus(null)
       setLoginMessage(null)
       setView('catalog')
-    } catch {
+    } catch (error) {
       setLoginMessage({
         type: 'error',
-        message: 'No se pudo verificar la cuenta. Inténtalo de nuevo.',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'No se pudo iniciar sesión. Inténtalo de nuevo.',
       })
     } finally {
       setLoginBusy(false)
     }
   }
 
-  function handleRegisterSubmit(event) {
+  async function handleRegisterSubmit(event) {
     event.preventDefault()
     if (registerBusy) {
       return
@@ -906,11 +946,159 @@ function LoginPage() {
       return
     }
 
-    issueVerification(
-      'register',
-      registerForm.email.trim().toLowerCase(),
-      { ...registerForm },
-    )
+    setRegisterBusy(true)
+
+    try {
+      await sendOtpCode(registerForm.email.trim().toLowerCase())
+      setPendingRegistration({ ...registerForm })
+      setOtpCode('')
+      setOtpStatus({
+        type: 'info',
+        message: `Enviamos un código de verificación a ${registerForm.email.trim()}.`,
+      })
+      setOtpExpiresAt(Date.now() + OTP_TTL_MS)
+      setOtpRemaining(30)
+      setRegisterStatus(null)
+      setView('verify-email')
+    } catch (error) {
+      setRegisterStatus({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'No se pudo enviar el código. Inténtalo de nuevo.',
+      })
+    } finally {
+      setRegisterBusy(false)
+    }
+  }
+
+  async function handleOtpSubmit(event) {
+    event.preventDefault()
+    if (!pendingRegistration || otpBusy) {
+      return
+    }
+    if (!/^\d{6}$/.test(otpCode)) {
+      setOtpStatus({
+        type: 'error',
+        message: 'Ingresa el código de 6 dígitos enviado a tu correo.',
+      })
+      return
+    }
+
+    setOtpBusy(true)
+    try {
+      if (Date.now() >= otpExpiresAt) {
+        setOtpRemaining(0)
+        setOtpStatus({
+          type: 'error',
+          message: 'El código venció. Reenvía uno nuevo para continuar.',
+        })
+        return
+      }
+      await verifyOtpCode(
+        pendingRegistration.email.trim().toLowerCase(),
+        otpCode,
+      )
+      if (Date.now() >= otpExpiresAt) {
+        setOtpRemaining(0)
+        setOtpStatus({
+          type: 'error',
+          message: 'El código venció. Reenvía uno nuevo para continuar.',
+        })
+        return
+      }
+
+      const dni = pendingRegistration.dni
+      const salt = createSalt()
+      const passwordHash = await hashPassword(
+        pendingRegistration.password,
+        salt,
+      )
+      const typedUsername = pendingRegistration.username.trim()
+      const username = typedUsername
+        ? typedUsername
+        : createUniqueUsername(
+            slugifyUsername(
+              pendingRegistration.email.split('@')[0] ||
+                pendingRegistration.name,
+            ),
+            users,
+            dni,
+          )
+      const nextUsers = {
+        ...users,
+        [dni]: {
+          dni,
+          name: pendingRegistration.name.trim(),
+          phone: pendingRegistration.phone.trim(),
+          email: pendingRegistration.email.trim().toLowerCase(),
+          gender: pendingRegistration.gender,
+          username,
+          description: pendingRegistration.description.trim(),
+          salt,
+          passwordHash,
+          createdAt: new Date().toISOString(),
+        },
+      }
+
+      setUsers(nextUsers)
+      if (apiSessionUser) {
+        setApiSessionUser(nextUsers[sessionUser.dni])
+      }
+      saveUsers(nextUsers)
+      setPendingRegistration(null)
+      setOtpCode('')
+      setOtpExpiresAt(0)
+      setOtpRemaining(0)
+      setOtpStatus(null)
+      setRegisterForm(EMPTY_REGISTER_FORM)
+      setRegisterErrors({})
+      setLoginForm({ identifier: dni, password: '' })
+      setLoginMessage({
+        type: 'success',
+        message: `Correo verificado. Registro completado; inicia sesión con tu DNI ${dni} o correo.`,
+      })
+      setLoginErrors({})
+      setView('login')
+    } catch (error) {
+      setOtpStatus({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'No se pudo verificar el código. Inténtalo de nuevo.',
+      })
+    } finally {
+      setOtpBusy(false)
+    }
+  }
+
+  async function handleOtpResend() {
+    if (!pendingRegistration || otpBusy || otpRemaining > 0) {
+      return
+    }
+    setOtpBusy(true)
+    try {
+      await sendOtpCode(pendingRegistration.email.trim().toLowerCase())
+      setOtpCode('')
+      setOtpExpiresAt(Date.now() + OTP_TTL_MS)
+      setOtpRemaining(30)
+      setOtpStatus({
+        type: 'success',
+        message: `Enviamos un nuevo código a ${pendingRegistration.email.trim()}.`,
+      })
+    } catch (error) {
+      setOtpStatus({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'No se pudo reenviar el código. Inténtalo de nuevo.',
+      })
+    } finally {
+      setOtpBusy(false)
+    }
   }
 
   function handleProfileSubmit(event) {
@@ -963,7 +1151,9 @@ function LoginPage() {
 
   function handleLogout() {
     setSessionDni('')
+    setApiSessionUser(null)
     setIsAdmin(false)
+    window.localStorage.removeItem('token')
     setDeleteAccountOpen(false)
     setAdminForm(EMPTY_ADMIN_FORM)
     setAdminErrors({})
@@ -971,7 +1161,9 @@ function LoginPage() {
     setShowAdminPassword(false)
     setLoginForm({
       identifier:
-        sessionUser && sessionUser.role !== 'admin' ? sessionUser.email : '',
+        sessionUser && sessionUser.role !== 'admin'
+          ? sessionUser.email || sessionUser.dni
+          : '',
       password: '',
     })
     setLoginErrors({})
@@ -1007,7 +1199,9 @@ function LoginPage() {
     removeAccount(deletedAccount)
     setDeleteAccountOpen(false)
     setSessionDni('')
+    setApiSessionUser(null)
     setIsAdmin(false)
+    window.localStorage.removeItem('token')
     setProfileForm({
       username: '',
       description: '',
@@ -1040,10 +1234,6 @@ function LoginPage() {
       title: 'Recuperar contraseña',
       subtitle: 'Te ayudaremos a restablecer el acceso a tu cuenta.',
     },
-    'verify-email': {
-      title: 'Verifica tu correo',
-      subtitle: 'Ingresa el código de 6 dígitos para continuar.',
-    },
     'reset-password': {
       title: 'Crea una nueva contraseña',
       subtitle: 'Elige una contraseña segura para tu cuenta.',
@@ -1051,6 +1241,10 @@ function LoginPage() {
     register: {
       title: 'Crea tu perfil de jugador',
       subtitle: 'Regístrate con un correo @gmail.com y personaliza tu cuenta.',
+    },
+    'verify-email': {
+      title: 'Verifica tu correo',
+      subtitle: 'Ingresa el código de verificación para continuar.',
     },
     profile: {
       title: 'Tu perfil',
@@ -1265,16 +1459,14 @@ function LoginPage() {
           </form>
         )}
 
-        {view === 'verify-email' && verification && (
+        {view === 'verify-email' && verification && !pendingRegistration && (
           <form
             className="animate-fade-slide space-y-5"
             onSubmit={handleVerificationSubmit}
             noValidate
           >
             <p className="arcade-hint text-center">
-              {verification.purpose === 'register'
-                ? 'Verifica el correo para completar tu registro:'
-                : 'Verifica tu identidad para restablecer la contraseña:'}{' '}
+              Verifica tu identidad para restablecer la contraseña:{' '}
               <span className="text-white">{verification.email}</span>
             </p>
             <div className="arcade-message arcade-message-info">
@@ -1324,10 +1516,9 @@ function LoginPage() {
             <FormMessage status={verificationMessage} />
             <button
               type="submit"
-              disabled={registerBusy}
               className="arcade-btn arcade-btn-primary w-full px-4 py-3"
             >
-              {registerBusy ? 'Completando...' : 'Verificar código'}
+              Verificar código
             </button>
             <button
               type="button"
@@ -1345,7 +1536,8 @@ function LoginPage() {
               onClick={() => {
                 setVerification(null)
                 setVerificationCode('')
-                setView(verification.purpose === 'register' ? 'register' : 'login')
+                setVerificationRemaining(0)
+                setView('login')
               }}
               className="arcade-link w-full text-center"
             >
@@ -1732,6 +1924,81 @@ function LoginPage() {
               className="arcade-btn arcade-btn-primary w-full px-4 py-3"
             >
               {registerBusy ? 'Creando perfil...' : 'Crear mi cuenta'}
+            </button>
+          </form>
+        )}
+
+        {view === 'verify-email' && pendingRegistration && (
+          <form
+            className="animate-fade-slide space-y-5"
+            onSubmit={handleOtpSubmit}
+            noValidate
+          >
+            <p className="arcade-hint text-center">
+              Ingresa el código enviado a{' '}
+              <span className="text-white">
+                {pendingRegistration.email.trim()}
+              </span>
+              .
+            </p>
+            <div>
+              <label htmlFor="register-otp" className={labelClass}>
+                Código de verificación
+              </label>
+              <input
+                id="register-otp"
+                name="otp"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                value={otpCode}
+                onChange={(event) => {
+                  setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))
+                  setOtpStatus(null)
+                }}
+                placeholder="000000"
+                aria-label="Código OTP de seis dígitos"
+                className={`${inputBase} text-center font-mono text-2xl tracking-[0.5em]`}
+              />
+              <p className="arcade-hint mt-2 text-center" aria-live="polite">
+                {otpRemaining > 0
+                  ? `El código vence en ${otpRemaining} s`
+                  : 'El código venció. Solicita uno nuevo.'}
+              </p>
+            </div>
+            <FormMessage status={otpStatus} />
+            <button
+              type="submit"
+              disabled={otpBusy || otpRemaining === 0}
+              className="arcade-btn arcade-btn-primary w-full px-4 py-3"
+            >
+              {otpBusy ? 'Verificando...' : 'Verificar código'}
+            </button>
+            <button
+              type="button"
+              onClick={handleOtpResend}
+              disabled={otpBusy || otpRemaining > 0}
+              className="arcade-btn arcade-btn-secondary w-full px-4 py-3"
+            >
+              {otpBusy
+                ? 'Procesando...'
+                : otpRemaining > 0
+                  ? `Reenviar código en ${otpRemaining} s`
+                  : 'Reenviar código'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPendingRegistration(null)
+                setOtpCode('')
+                setOtpStatus(null)
+                setView('register')
+              }}
+              className="arcade-link w-full text-center"
+            >
+              Volver al registro
             </button>
           </form>
         )}
