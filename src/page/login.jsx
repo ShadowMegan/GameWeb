@@ -31,8 +31,12 @@ import { markUserOffline, markUserOnline } from '../lib/presence.js'
 import { readHighScore, readPlayedGames } from '../lib/scores.js'
 
 const USERS_KEY = 'gameweb_users'
-const AUTH_API_URL =
-  import.meta.env.VITE_AUTH_API_URL || 'http://localhost:5000/api/auth'
+const API_URL =
+  import.meta.env.VITE_AUTH_API_URL || 'https://gameweb-u50w.onrender.com'
+const NORMALIZED_API_URL = API_URL.replace(/\/+$/, '')
+const AUTH_API_URL = NORMALIZED_API_URL.endsWith('/api/auth')
+  ? NORMALIZED_API_URL
+  : `${NORMALIZED_API_URL}/api/auth`
 const OTP_TTL_MS = 30000
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
 const DNI_LENGTH = 8
@@ -209,6 +213,14 @@ async function verifyOtpCode(email, code) {
     'verify-code',
     { email, code },
     'El código OTP no es válido.',
+  )
+}
+
+async function registerAuthUser(email, password) {
+  return requestAuthApi(
+    'register',
+    { email, password },
+    'No se pudo registrar la cuenta.',
   )
 }
 
@@ -875,7 +887,7 @@ function LoginPage() {
       const data = await requestAuthApi(
         'login',
         {
-          identifier,
+          email: identifier,
           password: loginForm.password,
         },
         'No se pudo iniciar sesión.',
@@ -1025,6 +1037,10 @@ function LoginPage() {
         })
         return
       }
+      await registerAuthUser(
+        pendingRegistration.email.trim().toLowerCase(),
+        pendingRegistration.password,
+      )
 
       const dni = pendingRegistration.dni
       const salt = createSalt()
@@ -1071,10 +1087,13 @@ function LoginPage() {
       setOtpStatus(null)
       setRegisterForm(EMPTY_REGISTER_FORM)
       setRegisterErrors({})
-      setLoginForm({ identifier: dni, password: '' })
+      setLoginForm({
+        identifier: pendingRegistration.email.trim().toLowerCase(),
+        password: '',
+      })
       setLoginMessage({
         type: 'success',
-        message: `Correo verificado. Registro completado; inicia sesión con tu DNI ${dni} o correo.`,
+        message: 'Correo verificado. Registro completado; inicia sesión con tu correo.',
       })
       setLoginErrors({})
       setView('login')
