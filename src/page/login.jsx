@@ -622,6 +622,17 @@ function LoginPage() {
     setView(nextView)
   }
 
+  function handleGuestAccess() {
+    setLoginMessage(null)
+    setView('catalog')
+  }
+
+  function handleGuestProtectedAction(message) {
+    setLoginErrors({})
+    setLoginMessage({ type: 'info', message })
+    setView('login')
+  }
+
   function handleLoginChange(event) {
     const { name, value } = event.target
 
@@ -1417,6 +1428,14 @@ function LoginPage() {
               {loginBusy ? 'Ingresando...' : 'Iniciar sesión'}
             </button>
 
+            <button
+              type="button"
+              onClick={handleGuestAccess}
+              className="arcade-btn arcade-btn-secondary w-full px-4 py-3"
+            >
+              Explorar catálogo como invitado
+            </button>
+
             <div className="mt-3 text-center">
               <button
                 type="button"
@@ -2044,13 +2063,16 @@ function LoginPage() {
           </form>
         )}
 
-        {view === 'catalog' && sessionUser && (
+        {view === 'catalog' && (
           <GameCatalog
             user={sessionUser}
             isAdmin={isAdmin}
             onOpenAdmin={() => switchView('admin')}
             onEditProfile={() => switchView('profile')}
             onLogout={handleLogout}
+            onLogin={() => switchView('login')}
+            onRegister={() => switchView('register')}
+            onRequireAuth={handleGuestProtectedAction}
           />
         )}
 
@@ -2382,7 +2404,7 @@ function LoginPage() {
 
       </section>
 
-      {(view === 'login' || view === 'register') && (
+      {view === 'catalog' && sessionUser && (
         <div className="w-full max-w-5xl">
           <CommunityComments sessionUser={sessionUser} />
         </div>

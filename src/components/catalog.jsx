@@ -107,6 +107,8 @@ function GameCard({
   isFavorite,
   onToggleFavorite,
   canManage,
+  showUserActions,
+  showPoints,
   onEdit,
   onDelete,
 }) {
@@ -135,25 +137,27 @@ function GameCard({
           >
             {game.category}
           </span>
-          <button
-            type="button"
-            onClick={onToggleFavorite}
-            aria-pressed={isFavorite}
-            aria-label={
-              isFavorite
-                ? `Quitar ${game.name} de favoritos`
-                : `Agregar ${game.name} a favoritos`
-            }
-            title={isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
-            className="arcade-btn arcade-btn-secondary arcade-btn-sm"
-          >
-            <Heart
-              className="h-4 w-4"
-              style={{ color: isFavorite ? '#ff4d6d' : undefined }}
-              fill={isFavorite ? '#ff4d6d' : 'none'}
-              aria-hidden="true"
-            />
-          </button>
+          {showUserActions && (
+            <button
+              type="button"
+              onClick={onToggleFavorite}
+              aria-pressed={isFavorite}
+              aria-label={
+                isFavorite
+                  ? `Quitar ${game.name} de favoritos`
+                  : `Agregar ${game.name} a favoritos`
+              }
+              title={isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+              className="arcade-btn arcade-btn-secondary arcade-btn-sm"
+            >
+              <Heart
+                className="h-4 w-4"
+                style={{ color: isFavorite ? '#ff4d6d' : undefined }}
+                fill={isFavorite ? '#ff4d6d' : 'none'}
+                aria-hidden="true"
+              />
+            </button>
+          )}
         </div>
       </div>
 
@@ -195,14 +199,16 @@ function GameCard({
       )}
 
       <div className="mt-auto flex flex-col gap-3 border-t border-[#8a2be255] pt-3">
-        <p className="arcade-meta-label flex items-center gap-1.5">
-          <Trophy
-            className="h-3.5 w-3.5 shrink-0 text-[#ffd319]"
-            aria-hidden="true"
-          />
-          Puntaje máximo:{' '}
-          <span className="text-[#ffd319]">{highScore}</span>
-        </p>
+        {showPoints && (
+          <p className="arcade-meta-label flex items-center gap-1.5">
+            <Trophy
+              className="h-3.5 w-3.5 shrink-0 text-[#ffd319]"
+              aria-hidden="true"
+            />
+            Puntaje máximo:{' '}
+            <span className="text-[#ffd319]">{highScore}</span>
+          </p>
+        )}
 
         <button
           type="button"
@@ -309,10 +315,22 @@ function ExitConfirmDialog({ gameName, score, onSave, onDiscard, onCancel }) {
   )
 }
 
-function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
-  const userId = user.dni
+function GameCatalog({
+  user,
+  isAdmin,
+  onOpenAdmin,
+  onEditProfile,
+  onLogout,
+  onLogin,
+  onRegister,
+  onRequireAuth,
+}) {
+  const userId = user?.dni ?? ''
+  const hasUserSession = Boolean(userId)
   const [games, setGames] = useState(() => readCatalog())
-  const [favorites, setFavorites] = useState(() => readFavorites(userId))
+  const [favorites, setFavorites] = useState(() =>
+    hasUserSession ? readFavorites(userId) : [],
+  )
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [editingGame, setEditingGame] = useState(null)
   const [createGameOpen, setCreateGameOpen] = useState(false)
@@ -340,7 +358,12 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
   )
 
   useEffect(() => subscribeCatalog(setGames), [])
-  useEffect(() => subscribeFavorites(userId, setFavorites), [userId])
+  useEffect(() => {
+    if (!hasUserSession) {
+      return undefined
+    }
+    return subscribeFavorites(userId, setFavorites)
+  }, [hasUserSession, userId])
 
   useEffect(() => {
     storeFilter(CATEGORY_STORAGE_KEY, category)
@@ -351,13 +374,16 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
   }, [sortOrder])
 
   const handleScore = useCallback((gameId, score) => {
+    if (!userId) {
+      return
+    }
     setHighScores((previous) => {
       if ((previous[gameId] ?? 0) >= score) {
         return previous
       }
       return { ...previous, [gameId]: score }
     })
-  }, [])
+  }, [userId])
 
   const handleSessionChange = useCallback((next) => {
     const normalized = {
@@ -396,12 +422,19 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
     setPendingExitAction('catalog')
     setHighScores(
       Object.fromEntries(
-        games.map((game) => [game.id, readHighScore(userId, game.id)]),
+        games.map((game) => [
+          game.id,
+          hasUserSession ? readHighScore(userId, game.id) : 0,
+        ]),
       ),
     )
   }
 
   function openGame(gameId) {
+    if (!hasUserSession) {
+      onRequireAuth('Inicia sesión o regístrate para jugar y guardar tu progreso.')
+      return
+    }
     const game = games.find((candidate) => candidate.id === gameId)
     if (!game) {
       return
@@ -414,7 +447,7 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
   }
 
   function performExit(action, shouldSave) {
-    if (shouldSave && activeGame && gameSession.score > 0) {
+    if (shouldSave && hasUserSession && activeGame && gameSession.score > 0) {
       saveProgress(userId, activeGame, {
         score: gameSession.score,
         level: gameSession.level,
@@ -470,11 +503,19 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
   }
 
   function handleToggleFavorite(gameId) {
+    if (!hasUserSession) {
+      onRequireAuth('Inicia sesión o regístrate para guardar juegos favoritos.')
+      return
+    }
     const next = toggleFavorite(userId, gameId)
     setFavorites(next)
   }
 
   function handleCreateSubmit(form) {
+    if (!user) {
+      onRequireAuth('Inicia sesión o regístrate para publicar un juego.')
+      return {}
+    }
     const result = addGame(form, user)
     if (result.errors) {
       return result.errors
@@ -531,26 +572,35 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
   return (
     <div className="animate-fade-slide flex flex-col gap-3 sm:gap-5">
       <div className="arcade-card flex flex-col gap-3 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:p-4">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <ArcadeAvatar user={user} size="sm" />
-          <button
-            type="button"
-            onClick={() => setCreateGameOpen(true)}
-            aria-label="Publicar nuevo juego"
-            title="Publicar nuevo juego"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-[#07030f] bg-[#ff2e88] text-white shadow-[0_0_12px_rgba(255,46,136,0.9)] transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00e5ff]"
-          >
-            <Plus className="h-5 w-5" aria-hidden="true" />
-          </button>
-          <div className="min-w-0 flex-1">
-            <p className="arcade-profile-name truncate text-[0.7rem] sm:text-[0.8rem]">
-              {user.name}
-            </p>
-            <p className="arcade-hint truncate text-sm sm:text-base">
-              @{user.username} · {isAdmin ? 'Administrador' : `DNI ${user.dni}`}
-            </p>
+        {user ? (
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <ArcadeAvatar user={user} size="sm" />
+            {!isAdmin && (
+              <button
+                type="button"
+                onClick={() => setCreateGameOpen(true)}
+                aria-label="Publicar nuevo juego"
+                title="Publicar nuevo juego"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-[#07030f] bg-[#ff2e88] text-white shadow-[0_0_12px_rgba(255,46,136,0.9)] transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00e5ff]"
+              >
+                <Plus className="h-5 w-5" aria-hidden="true" />
+              </button>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="arcade-profile-name truncate text-[0.7rem] sm:text-[0.8rem]">
+                {user.name}
+              </p>
+              <p className="arcade-hint truncate text-sm sm:text-base">
+                @{user.username} · {isAdmin ? 'Administrador' : `DNI ${user.dni}`}
+              </p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <p className="arcade-profile-name">Modo invitado</p>
+            <p className="arcade-hint">Explora el catálogo; inicia sesión para jugar o guardar tus partidas.</p>
+          </div>
+        )}
         <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
           {isAdmin && (
             <button
@@ -562,21 +612,42 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
             </button>
           )}
           {!isAdmin && (
+            user ? (
+              <button
+                type="button"
+                onClick={() => requestExit('profile')}
+                className="arcade-btn arcade-btn-secondary arcade-btn-sm flex flex-1 items-center justify-center gap-2 px-2 sm:flex-none sm:px-3"
+              >
+                <User className="h-4 w-4" aria-hidden="true" /> Mi perfil
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={onLogin}
+                  className="arcade-btn arcade-btn-secondary arcade-btn-sm flex-1 px-2 sm:flex-none sm:px-3"
+                >
+                  Iniciar sesión
+                </button>
+                <button
+                  type="button"
+                  onClick={onRegister}
+                  className="arcade-btn arcade-btn-primary arcade-btn-sm flex-1 px-2 sm:flex-none sm:px-3"
+                >
+                  Registrarme
+                </button>
+              </>
+            )
+          )}
+          {user && (
             <button
               type="button"
-              onClick={() => requestExit('profile')}
+              onClick={() => requestExit('logout')}
               className="arcade-btn arcade-btn-secondary arcade-btn-sm flex flex-1 items-center justify-center gap-2 px-2 sm:flex-none sm:px-3"
             >
-              <User className="h-4 w-4" aria-hidden="true" /> Mi perfil
+              <LogOut className="h-4 w-4" aria-hidden="true" /> Cerrar sesión
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => requestExit('logout')}
-            className="arcade-btn arcade-btn-secondary arcade-btn-sm flex flex-1 items-center justify-center gap-2 px-2 sm:flex-none sm:px-3"
-          >
-            <LogOut className="h-4 w-4" aria-hidden="true" /> Cerrar sesión
-          </button>
         </div>
       </div>
 
@@ -746,8 +817,12 @@ function GameCatalog({ user, isAdmin, onOpenAdmin, onEditProfile, onLogout }) {
                   game={game}
                   highScore={highScores[game.id] ?? 0}
                   onPlay={() => openGame(game.id)}
-                  isFavorite={favorites.includes(game.id)}
+                  isFavorite={
+                    hasUserSession && favorites.includes(game.id)
+                  }
                   onToggleFavorite={() => handleToggleFavorite(game.id)}
+                  showUserActions={hasUserSession}
+                  showPoints={hasUserSession}
                   canManage={canManageGame(game, user)}
                   onEdit={() => setEditingGame(game)}
                   onDelete={() => setDeleteTarget(game)}
