@@ -31,12 +31,10 @@ import { markUserOffline, markUserOnline } from '../lib/presence.js'
 import { readHighScore, readPlayedGames } from '../lib/scores.js'
 
 const USERS_KEY = 'gameweb_users'
-const API_URL =
-  import.meta.env.VITE_AUTH_API_URL || 'https://gameweb-u50w.onrender.com'
-const NORMALIZED_API_URL = API_URL.replace(/\/+$/, '')
-const AUTH_API_URL = NORMALIZED_API_URL.endsWith('/api/auth')
-  ? NORMALIZED_API_URL
-  : `${NORMALIZED_API_URL}/api/auth`
+const API_URL = (
+  import.meta.env.VITE_AUTH_API_URL ||
+  'https://gameweb-u50w.onrender.com/api/auth'
+).replace(/\/+$/, '')
 const OTP_TTL_MS = 30000
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
 const DNI_LENGTH = 8
@@ -182,7 +180,7 @@ async function requestAuthApi(endpoint, payload, fallbackMessage) {
   let response
 
   try {
-    response = await fetch(`${AUTH_API_URL}/${endpoint}`, {
+    response = await fetch(`${API_URL}/${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -190,7 +188,7 @@ async function requestAuthApi(endpoint, payload, fallbackMessage) {
   } catch (error) {
     if (error instanceof TypeError) {
       throw new Error(
-        `No se pudo conectar con el backend de autenticación (${AUTH_API_URL}). Verifica VITE_AUTH_API_URL, que el backend esté disponible y su configuración CORS.`,
+        `No se pudo conectar con el backend de autenticación (${API_URL}). Verifica VITE_AUTH_API_URL, que el backend esté disponible y su configuración CORS.`,
         { cause: error },
       )
     }

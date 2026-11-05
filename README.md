@@ -3,10 +3,12 @@
 ## Backend de autenticación
 
 El frontend lee `VITE_AUTH_API_URL` durante la compilación. Configura esa variable
-en Vercel en **Project Settings → Environment Variables** con el dominio base del
-backend, por ejemplo `https://gameweb-u50w.onrender.com`. También se acepta una
-URL que ya termine en `/api/auth`. Después de cambiarla, vuelve a desplegar el
-proyecto. Si no defines la variable, se utiliza `https://gameweb-u50w.onrender.com`.
+en Vercel en **Project Settings → Environment Variables** con la URL base de
+autenticación completa, por ejemplo
+`https://gameweb-u50w.onrender.com/api/auth`. Las rutas (`/send-code`,
+`/verify-code`, `/register` y `/login`) se agregan a esa base. Después de cambiar
+la variable, vuelve a desplegar el proyecto. Si no la defines, se utiliza
+`https://gameweb-u50w.onrender.com/api/auth`.
 
 El backend también debe permitir mediante CORS el dominio donde se despliega
 el frontend.
