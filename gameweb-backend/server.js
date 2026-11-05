@@ -37,8 +37,9 @@ const verifiedEmails = new Set();
 
 // Configurar Nodemailer con Gmail
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  tls: { rejectUnauthorized: false },
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true, // true para puerto 465, false para 587
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
