@@ -31,7 +31,8 @@ import { markUserOffline, markUserOnline } from '../lib/presence.js'
 import { readHighScore, readPlayedGames } from '../lib/scores.js'
 
 const USERS_KEY = 'gameweb_users'
-const AUTH_API_URL = 'http://localhost:5000/api/auth'
+const AUTH_API_URL =
+  import.meta.env.VITE_AUTH_API_URL || 'http://localhost:5000/api/auth'
 const OTP_TTL_MS = 30000
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
 const DNI_LENGTH = 8
@@ -153,7 +154,9 @@ async function readAuthApiResponse(response, fallbackMessage) {
   try {
     result = await response.json()
   } catch {
-    throw new Error('El servidor devolvió una respuesta no válida.')
+    throw new Error(
+      'El backend de autenticación devolvió una respuesta no válida. Verifica VITE_AUTH_API_URL y que el servicio esté disponible.',
+    )
   }
   if (!result || typeof result !== 'object') {
     throw new Error(fallbackMessage)
@@ -171,24 +174,42 @@ async function readAuthApiResponse(response, fallbackMessage) {
   return result
 }
 
-async function sendOtpCode(email) {
-  const response = await fetch(`${AUTH_API_URL}/send-code`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
-  })
+async function requestAuthApi(endpoint, payload, fallbackMessage) {
+  let response
 
-  return readAuthApiResponse(response, 'No se pudo enviar el código OTP.')
+  try {
+    response = await fetch(`${AUTH_API_URL}/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(
+        `No se pudo conectar con el backend de autenticación (${AUTH_API_URL}). Verifica VITE_AUTH_API_URL, que el backend esté disponible y su configuración CORS.`,
+        { cause: error },
+      )
+    }
+    throw error
+  }
+
+  return readAuthApiResponse(response, fallbackMessage)
+}
+
+async function sendOtpCode(email) {
+  return requestAuthApi(
+    'send-code',
+    { email },
+    'No se pudo enviar el código OTP.',
+  )
 }
 
 async function verifyOtpCode(email, code) {
-  const response = await fetch(`${AUTH_API_URL}/verify-code`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, code }),
-  })
-
-  return readAuthApiResponse(response, 'El código OTP no es válido.')
+  return requestAuthApi(
+    'verify-code',
+    { email, code },
+    'El código OTP no es válido.',
+  )
 }
 
 function createVerificationCode() {
@@ -851,16 +872,12 @@ function LoginPage() {
 
     setLoginBusy(true)
     try {
-      const response = await fetch(`${AUTH_API_URL}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const data = await requestAuthApi(
+        'login',
+        {
           identifier,
           password: loginForm.password,
-        }),
-      })
-      const data = await readAuthApiResponse(
-        response,
+        },
         'No se pudo iniciar sesión.',
       )
       if (typeof data.token !== 'string' || !data.token) {

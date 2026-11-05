@@ -1,5 +1,21 @@
 # React + Vite
 
+## Backend de autenticación
+
+El frontend lee `VITE_AUTH_API_URL` durante la compilación. Configura esa variable
+en Vercel en **Project Settings → Environment Variables** con la URL base del
+backend, incluyendo `/api/auth` y sin una barra final, por ejemplo:
+`https://tu-backend.example.com/api/auth`. Después de cambiarla, vuelve a desplegar
+el proyecto. El valor predeterminado para desarrollo local es
+`http://localhost:5000/api/auth`.
+
+El backend también debe permitir mediante CORS el dominio donde se despliega
+el frontend.
+
+Para desarrollo local, puedes copiar `.env.example` a `.env.local` y ajustar la
+URL. No guardes credenciales ni secretos en variables `VITE_*`: se incluyen en
+el bundle público del navegador.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
