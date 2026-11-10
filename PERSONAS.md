@@ -50,3 +50,22 @@
 
 ### Ganancias (Éxitos)
 * Acceder a la plataforma de forma instantánea y encontrar catálogos ordenados por categorías en segundos.
+
+---
+
+## Historias de Usuario (Basadas en los Dolores del Mapa de Empatía)
+
+### Historia 1: Autenticación rápida
+* **Dolor:** Olvidar contraseñas tradicionales y lidiar con procesos de recuperación largos.
+* **Historia:** Como Carlos, quiero iniciar sesión utilizando mi cuenta de Google para no tener que recordar otra contraseña ni pasar por formularios largos.
+* **Criterio:** Dado que Carlos se encuentra en la pantalla de inicio de sesión, cuando hace clic en "Entrar con Google", entonces el sistema autentica sus credenciales de forma automática y lo redirige al panel principal en menos de 2 segundos.
+
+### Historia 2: Filtrado eficiente de contenidos
+* **Dolor:** Encontrarse con páginas web desordenadas donde es difícil encontrar información específica rápidamente.
+* **Historia:** Como Carlos, quiero filtrar el catálogo de videojuegos por categorías y géneros para encontrar títulos de mi interés de forma inmediata.
+* **Criterio:** Dado que Carlos selecciona un filtro en el menú de categorías, entonces la interfaz actualiza los resultados en tiempo real mostrando únicamente los juegos correspondientes a esa selección.
+
+### Historia 3: Visualización de información en dispositivos móviles
+* **Dolor:** Páginas web que fallan al adaptarse correctamente a dispositivos portátiles o móviles.
+* **Historia:** Como Carlos, quiero que la interfaz de la plataforma se adapte automáticamente al tamaño de la pantalla de mi dispositivo para navegar con comodidad desde cualquier lugar.
+* **Criterio:** Dado que Carlos accede a la aplicación web desde un dispositivo móvil o laptop, entonces el diseño responsivo redistribuye los elementos visuales sin alterar la legibilidad ni recortar contenido.
