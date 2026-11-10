@@ -31,3 +31,7 @@ There is no test runner or test script configured. Do not invent `npm test`; add
 - Entry point: `index.html` -> `src/main.jsx` -> `src/App.jsx`. Root `src/index.css` (Tailwind), component styles in `src/App.css` (plain CSS with nesting).
 - Static assets: `src/assets/` are imported as modules; `public/` files are referenced by absolute URL (e.g. `/icons.svg#...`).
 - `dist/` is a build artifact and gitignored; never edit it.
+
+## Reglas del proyecto
+
+- Diseña las pantallas pensando en las Personas de PERSONAS.md.
