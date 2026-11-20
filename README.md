@@ -5,8 +5,10 @@
 El frontend lee `VITE_AUTH_API_URL` durante la compilación. Configura esa variable
 en Vercel en **Project Settings → Environment Variables** con la URL base de
 autenticación completa, por ejemplo
-`https://gameweb-u50w.onrender.com/api/auth`. Las rutas (`/send-code`,
-`/verify-code`, `/register` y `/login`) se agregan a esa base. Después de cambiar
+`https://gameweb-u50w.onrender.com/api/auth`. Las rutas (`/register` y `/login`)
+se agregan a esa base. El registro y el acceso usan únicamente correo y
+contraseña; el correo puede ser de prueba y no se envían códigos ni emails.
+Después de cambiar
 la variable, vuelve a desplegar el proyecto. Si no la defines, se utiliza
 `https://gameweb-u50w.onrender.com/api/auth`.
 

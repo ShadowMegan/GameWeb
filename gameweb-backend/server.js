@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const nodemailer = require('nodemailer');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
@@ -32,74 +31,6 @@ const saveUsers = (nextUsers) => {
 };
 
 let users = loadUsers();
-const verificationCodes = new Map();
-const verifiedEmails = new Set();
-
-// Configurar Nodemailer con Gmail
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // true para puerto 465, false para 587
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
-// Endpoint para enviar el código de 6 dígitos
-app.post('/api/auth/send-code', async (req, res) => {
-  const { email } = req.body;
-  if (typeof email !== 'string' || !email.trim()) {
-    return res.status(400).json({ success: false, message: 'Falta el correo.' });
-  }
-  const normalizedEmail = email.trim().toLowerCase();
-
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = Date.now() + 30 * 1000; // Expira estrictamente en 30 segundos
-
-  verificationCodes.set(normalizedEmail, { code, expiresAt });
-  verifiedEmails.delete(normalizedEmail);
-
-  try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: normalizedEmail,
-      subject: 'Código de verificación - GameWeb',
-      text: `Tu código de 6 dígitos es: ${code}. Expira en 30 segundos.`
-    });
-    res.json({ success: true, message: 'Código enviado al correo.' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, error: 'Error al enviar el correo.' });
-  }
-});
-
-// Endpoint para verificar el código
-app.post('/api/auth/verify-code', (req, res) => {
-  const { email, code } = req.body;
-  if (typeof email !== 'string' || typeof code !== 'string') {
-    return res.status(400).json({ success: false, message: 'Correo o código inválido.' });
-  }
-  const normalizedEmail = email.trim().toLowerCase();
-  const record = verificationCodes.get(normalizedEmail);
-
-  if (!record) {
-    return res.status(400).json({ success: false, message: 'No hay códigos solicitados.' });
-  }
-
-  if (Date.now() > record.expiresAt) {
-    verificationCodes.delete(normalizedEmail);
-    return res.status(400).json({ success: false, message: 'El código ha expirado.' });
-  }
-
-  if (record.code !== code) {
-    return res.status(400).json({ success: false, message: 'Código incorrecto.' });
-  }
-
-  verificationCodes.delete(normalizedEmail);
-  verifiedEmails.add(normalizedEmail);
-  res.json({ success: true, message: 'Verificación exitosa.' });
-});
 
 app.post('/api/auth/register', async (req, res) => {
   const { email, password } = req.body;
@@ -108,9 +39,6 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-  if (!verifiedEmails.has(normalizedEmail)) {
-    return res.status(403).json({ success: false, message: 'Debes verificar tu correo antes de registrarte.' });
-  }
   if (users.some((user) => user.email === normalizedEmail)) {
     return res.status(409).json({ success: false, message: 'Ya existe una cuenta con ese correo.' });
   }
@@ -125,10 +53,20 @@ app.post('/api/auth/register', async (req, res) => {
     const nextUsers = [...users, user];
     saveUsers(nextUsers);
     users = nextUsers;
-    verifiedEmails.delete(normalizedEmail);
+    if (!process.env.JWT_SECRET) {
+      console.error('Falta configurar JWT_SECRET para emitir tokens de autenticación.');
+      return res.status(500).json({ success: false, message: 'La autenticación no está configurada.' });
+    }
+
+    const token = jwt.sign(
+      { sub: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
     res.status(201).json({
       success: true,
       message: 'Usuario registrado correctamente.',
+      token,
       user: { id: user.id, email: user.email }
     });
   } catch (error) {

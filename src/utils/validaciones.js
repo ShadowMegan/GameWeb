@@ -1,5 +1,5 @@
 export function esCorreoValido(c) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c);
+  return typeof c === 'string' && c.trim().length > 0;
 }
 
 export function esClaveValida(p) {

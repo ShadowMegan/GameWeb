@@ -3,14 +3,11 @@ import {
   ArrowLeft,
   Check,
   CircleAlert,
-  Clock3,
   Crown,
   Eye,
   EyeOff,
   Flame,
   Gamepad2,
-  Mail,
-  RefreshCw,
   Skull,
   Trash2,
   Trophy,
@@ -35,10 +32,7 @@ const API_URL = (
   import.meta.env.VITE_AUTH_API_URL ||
   'https://gameweb-u50w.onrender.com/api/auth'
 ).replace(/\/+$/, '')
-const OTP_TTL_MS = 30000
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
 const DNI_LENGTH = 8
-const VERIFICATION_CODE_TTL_MS = 30000
 const MIN_PASSWORD_LENGTH = 8
 const MAX_PASSWORD_LENGTH = 32
 const MAX_DESCRIPTION_LENGTH = 140
@@ -145,9 +139,6 @@ function validateEmail(rawEmail) {
   if (!email) {
     return 'El correo electrónico es obligatorio.'
   }
-  if (!EMAIL_REGEX.test(email)) {
-    return 'Solo se permiten direcciones de correo @gmail.com.'
-  }
   return ''
 }
 
@@ -205,48 +196,12 @@ async function requestAuthApi(endpoint, payload, fallbackMessage) {
   return readAuthApiResponse(response, fallbackMessage)
 }
 
-async function sendOtpCode(email) {
-  return requestAuthApi(
-    'send-code',
-    { email },
-    'No se pudo enviar el código OTP.',
-  )
-}
-
-async function verifyOtpCode(email, code) {
-  return requestAuthApi(
-    'verify-code',
-    { email, code },
-    'El código OTP no es válido.',
-  )
-}
-
 async function registerAuthUser(email, password) {
   return requestAuthApi(
     'register',
     { email, password },
     'No se pudo registrar la cuenta.',
   )
-}
-
-function createVerificationCode() {
-  const values = new Uint32Array(1)
-  window.crypto.getRandomValues(values)
-  return String(values[0] % 1000000).padStart(6, '0')
-}
-
-function validateDni(rawDni) {
-  const dni = rawDni.trim()
-  if (!dni) {
-    return 'El DNI es obligatorio.'
-  }
-  if (!/^\d+$/.test(dni)) {
-    return 'El DNI solo puede contener números, sin letras ni símbolos.'
-  }
-  if (dni.length !== DNI_LENGTH) {
-    return `El DNI debe tener ${DNI_LENGTH} dígitos.`
-  }
-  return ''
 }
 
 function validatePhone(phone) {
@@ -332,15 +287,7 @@ function createUniqueUsername(base, users, dni) {
 
 function buildRegisterErrors(form, users) {
   const errors = {}
-  const name = form.name.trim()
   const email = form.email.trim().toLowerCase()
-  const username = form.username.trim()
-
-  if (!name) {
-    errors.name = 'El nombre es obligatorio.'
-  } else if (name.length < 3) {
-    errors.name = 'El nombre debe tener al menos 3 caracteres.'
-  }
 
   const phoneError = validatePhone(form.phone)
   if (phoneError) {
@@ -354,22 +301,11 @@ function buildRegisterErrors(form, users) {
     errors.email = 'Ya existe una cuenta registrada con este correo.'
   }
 
-  const dniError = validateDni(form.dni)
-  if (dniError) {
-    errors.dni = dniError
-  } else if (users[form.dni]) {
-    errors.dni = 'Ya existe una cuenta registrada con este DNI.'
-  }
-
-  if (!form.gender) {
-    errors.gender = 'Selecciona un género.'
-  }
-
-  if (username) {
-    const usernameError = validateUsername(username)
+  if (form.username.trim()) {
+    const usernameError = validateUsername(form.username)
     if (usernameError) {
       errors.username = usernameError
-    } else if (isUsernameTaken(username, users)) {
+    } else if (isUsernameTaken(form.username, users)) {
       errors.username = 'Ese nombre de usuario ya está en uso.'
     }
   }
@@ -505,20 +441,6 @@ function LoginPage() {
   const [loginBusy, setLoginBusy] = useState(false)
   const [showLoginPassword, setShowLoginPassword] = useState(false)
 
-  const [forgotEmail, setForgotEmail] = useState('')
-  const [verification, setVerification] = useState(null)
-  const [verificationCode, setVerificationCode] = useState('')
-  const [verificationMessage, setVerificationMessage] = useState(null)
-  const [verificationRemaining, setVerificationRemaining] = useState(0)
-  const [resetEmail, setResetEmail] = useState('')
-  const [resetForm, setResetForm] = useState({
-    password: '',
-    confirmPassword: '',
-  })
-  const [resetErrors, setResetErrors] = useState({})
-  const [resetMessage, setResetMessage] = useState(null)
-  const [resetBusy, setResetBusy] = useState(false)
-
   const [adminForm, setAdminForm] = useState(EMPTY_ADMIN_FORM)
   const [adminErrors, setAdminErrors] = useState({})
   const [adminMessage, setAdminMessage] = useState(null)
@@ -529,13 +451,6 @@ function LoginPage() {
   const [registerStatus, setRegisterStatus] = useState(null)
   const [registerBusy, setRegisterBusy] = useState(false)
   const [showRegisterPassword, setShowRegisterPassword] = useState(false)
-  const [pendingRegistration, setPendingRegistration] = useState(null)
-  const [otpCode, setOtpCode] = useState('')
-  const [otpStatus, setOtpStatus] = useState(null)
-  const [otpBusy, setOtpBusy] = useState(false)
-  const [otpExpiresAt, setOtpExpiresAt] = useState(0)
-  const [otpRemaining, setOtpRemaining] = useState(0)
-
   const [profileForm, setProfileForm] = useState({
     username: '',
     description: '',
@@ -583,36 +498,6 @@ function LoginPage() {
       markUserOffline(sessionUserId)
     }
   }, [sessionUserId])
-
-  useEffect(() => {
-    if (view !== 'verify-email' || otpExpiresAt === 0) {
-      return undefined
-    }
-
-    function updateCountdown() {
-      setOtpRemaining(Math.max(0, Math.ceil((otpExpiresAt - Date.now()) / 1000)))
-    }
-
-    updateCountdown()
-    const timer = window.setInterval(updateCountdown, 250)
-    return () => window.clearInterval(timer)
-  }, [view, otpExpiresAt])
-
-  useEffect(() => {
-    if (view !== 'verify-email' || !verification) {
-      return undefined
-    }
-
-    function updateCountdown() {
-      setVerificationRemaining(
-        Math.max(0, Math.ceil((verification.expiresAt - Date.now()) / 1000)),
-      )
-    }
-
-    updateCountdown()
-    const timer = window.setInterval(updateCountdown, 250)
-    return () => window.clearInterval(timer)
-  }, [view, verification])
 
   function switchView(nextView) {
     if (nextView === 'admin' && !isAdmin) {
@@ -727,145 +612,6 @@ function LoginPage() {
     setRegisterForm((previous) => ({ ...previous, [name]: nextValue }))
     setRegisterErrors((previous) => ({ ...previous, [name]: '' }))
     setRegisterStatus(null)
-  }
-
-  function issueVerification(email) {
-    const code = createVerificationCode()
-    setVerification({
-      email,
-      code,
-      expiresAt: Date.now() + VERIFICATION_CODE_TTL_MS,
-    })
-    setVerificationCode('')
-    setVerificationRemaining(30)
-    setVerificationMessage({
-      type: 'info',
-      message: `Prototipo local: código de demostración ${code}. No se envió un correo real.`,
-    })
-    setView('verify-email')
-  }
-
-  function handleResendVerification() {
-    if (!verification || verificationRemaining > 0) {
-      return
-    }
-    issueVerification(verification.email)
-  }
-
-  function handleVerificationSubmit(event) {
-    event.preventDefault()
-    if (!verification) {
-      return
-    }
-    if (Date.now() >= verification.expiresAt) {
-      setVerificationRemaining(0)
-      setVerificationMessage({
-        type: 'error',
-        message: 'El código venció. Solicita uno nuevo para continuar.',
-      })
-      return
-    }
-    if (!/^\d{6}$/.test(verificationCode)) {
-      setVerificationMessage({
-        type: 'error',
-        message: 'Ingresa el código de 6 dígitos.',
-      })
-      return
-    }
-    if (verificationCode !== verification.code) {
-      setVerificationMessage({
-        type: 'error',
-        message: 'El código no coincide. Revisa e inténtalo nuevamente.',
-      })
-      return
-    }
-
-    setResetEmail(verification.email)
-    setResetForm({ password: '', confirmPassword: '' })
-    setResetErrors({})
-    setResetMessage(null)
-    setVerification(null)
-    setView('reset-password')
-  }
-
-  function handleForgotPasswordSubmit(event) {
-    event.preventDefault()
-    const email = forgotEmail.trim().toLowerCase()
-    const emailError = validateEmail(email)
-    const user = Object.values(users).find((candidate) => candidate.email === email)
-    if (emailError) {
-      setResetMessage({ type: 'error', message: emailError })
-      return
-    }
-    if (!user) {
-      setResetMessage({
-        type: 'error',
-        message: 'No encontramos una cuenta registrada con ese correo.',
-      })
-      return
-    }
-    issueVerification(email)
-  }
-
-  function handleResetChange(event) {
-    const { name, value } = event.target
-    setResetForm((previous) => ({ ...previous, [name]: value }))
-    setResetErrors((previous) => ({ ...previous, [name]: '' }))
-    setResetMessage(null)
-  }
-
-  async function handleResetPasswordSubmit(event) {
-    event.preventDefault()
-    const errors = {}
-    const passwordError = validatePassword(resetForm.password)
-    if (passwordError) {
-      errors.password = passwordError
-    }
-    if (resetForm.password !== resetForm.confirmPassword) {
-      errors.confirmPassword = 'Las contraseñas no coinciden.'
-    }
-    setResetErrors(errors)
-    if (Object.keys(errors).length > 0) {
-      return
-    }
-
-    const account = Object.values(users).find(
-      (candidate) => candidate.email === resetEmail,
-    )
-    if (!account) {
-      setResetMessage({
-        type: 'error',
-        message: 'No encontramos la cuenta para actualizar la contraseña.',
-      })
-      return
-    }
-
-    setResetBusy(true)
-    try {
-      const salt = createSalt()
-      const passwordHash = await hashPassword(resetForm.password, salt)
-      const nextUsers = {
-        ...users,
-        [account.dni]: { ...account, salt, passwordHash },
-      }
-      setUsers(nextUsers)
-      saveUsers(nextUsers)
-      setLoginForm({ identifier: resetEmail, password: '' })
-      setLoginMessage({
-        type: 'success',
-        message: 'Contraseña actualizada. Ya puedes iniciar sesión.',
-      })
-      setResetForm({ password: '', confirmPassword: '' })
-      setResetEmail('')
-      setView('login')
-    } catch {
-      setResetMessage({
-        type: 'error',
-        message: 'No se pudo actualizar la contraseña. Inténtalo de nuevo.',
-      })
-    } finally {
-      setResetBusy(false)
-    }
   }
 
   async function handleLoginSubmit(event) {
@@ -994,162 +740,62 @@ function LoginPage() {
     setRegisterBusy(true)
 
     try {
-      await sendOtpCode(registerForm.email.trim().toLowerCase())
-      setPendingRegistration({ ...registerForm })
-      setOtpCode('')
-      setOtpStatus({
-        type: 'info',
-        message: `Enviamos un código de verificación a ${registerForm.email.trim()}.`,
+      const email = registerForm.email.trim().toLowerCase()
+      const data = await registerAuthUser(email, registerForm.password)
+      if (typeof data.token !== 'string' || !data.token) {
+        throw new Error('El servidor no devolvió un token de acceso válido.')
+      }
+
+      const dni = String(data.user?.id || `local-${Date.now()}`)
+      const salt = createSalt()
+      const passwordHash = await hashPassword(registerForm.password, salt)
+      const username = registerForm.username.trim() || createUniqueUsername(
+        email.split('@')[0] || 'player',
+        users,
+        dni,
+      )
+      const user = {
+        dni,
+        name: registerForm.name.trim() || username,
+        phone: registerForm.phone.trim(),
+        email,
+        gender: registerForm.gender || 'Prefiero no decirlo',
+        username,
+        description: registerForm.description.trim(),
+        salt,
+        passwordHash,
+        createdAt: new Date().toISOString(),
+      }
+      const nextUsers = { ...users, [dni]: user }
+      setUsers(nextUsers)
+      saveUsers(nextUsers)
+      window.localStorage.setItem('token', data.token)
+      setSessionDni(dni)
+      setApiSessionUser(null)
+      setProfileForm({
+        username: user.username,
+        description: user.description,
+        avatar: 'gamepad',
+        neonColor: 'pink',
       })
-      setOtpExpiresAt(Date.now() + OTP_TTL_MS)
-      setOtpRemaining(30)
+      setRegisterForm(EMPTY_REGISTER_FORM)
+      setRegisterErrors({})
       setRegisterStatus(null)
-      setView('verify-email')
+      setLoginMessage({
+        type: 'success',
+        message: 'Cuenta creada. Ya puedes empezar a jugar.',
+      })
+      setView('catalog')
     } catch (error) {
       setRegisterStatus({
         type: 'error',
         message:
           error instanceof Error
             ? error.message
-            : 'No se pudo enviar el código. Inténtalo de nuevo.',
+            : 'No se pudo crear la cuenta. Inténtalo de nuevo.',
       })
     } finally {
       setRegisterBusy(false)
-    }
-  }
-
-  async function handleOtpSubmit(event) {
-    event.preventDefault()
-    if (!pendingRegistration || otpBusy) {
-      return
-    }
-    if (!/^\d{6}$/.test(otpCode)) {
-      setOtpStatus({
-        type: 'error',
-        message: 'Ingresa el código de 6 dígitos enviado a tu correo.',
-      })
-      return
-    }
-
-    setOtpBusy(true)
-    try {
-      if (Date.now() >= otpExpiresAt) {
-        setOtpRemaining(0)
-        setOtpStatus({
-          type: 'error',
-          message: 'El código venció. Reenvía uno nuevo para continuar.',
-        })
-        return
-      }
-      await verifyOtpCode(
-        pendingRegistration.email.trim().toLowerCase(),
-        otpCode,
-      )
-      if (Date.now() >= otpExpiresAt) {
-        setOtpRemaining(0)
-        setOtpStatus({
-          type: 'error',
-          message: 'El código venció. Reenvía uno nuevo para continuar.',
-        })
-        return
-      }
-      await registerAuthUser(
-        pendingRegistration.email.trim().toLowerCase(),
-        pendingRegistration.password,
-      )
-
-      const dni = pendingRegistration.dni
-      const salt = createSalt()
-      const passwordHash = await hashPassword(
-        pendingRegistration.password,
-        salt,
-      )
-      const typedUsername = pendingRegistration.username.trim()
-      const username = typedUsername
-        ? typedUsername
-        : createUniqueUsername(
-            slugifyUsername(
-              pendingRegistration.email.split('@')[0] ||
-                pendingRegistration.name,
-            ),
-            users,
-            dni,
-          )
-      const nextUsers = {
-        ...users,
-        [dni]: {
-          dni,
-          name: pendingRegistration.name.trim(),
-          phone: pendingRegistration.phone.trim(),
-          email: pendingRegistration.email.trim().toLowerCase(),
-          gender: pendingRegistration.gender,
-          username,
-          description: pendingRegistration.description.trim(),
-          salt,
-          passwordHash,
-          createdAt: new Date().toISOString(),
-        },
-      }
-
-      setUsers(nextUsers)
-      if (apiSessionUser) {
-        setApiSessionUser(nextUsers[sessionUser.dni])
-      }
-      saveUsers(nextUsers)
-      setPendingRegistration(null)
-      setOtpCode('')
-      setOtpExpiresAt(0)
-      setOtpRemaining(0)
-      setOtpStatus(null)
-      setRegisterForm(EMPTY_REGISTER_FORM)
-      setRegisterErrors({})
-      setLoginForm({
-        identifier: pendingRegistration.email.trim().toLowerCase(),
-        password: '',
-      })
-      setLoginMessage({
-        type: 'success',
-        message: 'Correo verificado. Registro completado; inicia sesión con tu correo.',
-      })
-      setLoginErrors({})
-      setView('login')
-    } catch (error) {
-      setOtpStatus({
-        type: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'No se pudo verificar el código. Inténtalo de nuevo.',
-      })
-    } finally {
-      setOtpBusy(false)
-    }
-  }
-
-  async function handleOtpResend() {
-    if (!pendingRegistration || otpBusy || otpRemaining > 0) {
-      return
-    }
-    setOtpBusy(true)
-    try {
-      await sendOtpCode(pendingRegistration.email.trim().toLowerCase())
-      setOtpCode('')
-      setOtpExpiresAt(Date.now() + OTP_TTL_MS)
-      setOtpRemaining(30)
-      setOtpStatus({
-        type: 'success',
-        message: `Enviamos un nuevo código a ${pendingRegistration.email.trim()}.`,
-      })
-    } catch (error) {
-      setOtpStatus({
-        type: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'No se pudo reenviar el código. Inténtalo de nuevo.',
-      })
-    } finally {
-      setOtpBusy(false)
     }
   }
 
@@ -1275,28 +921,16 @@ function LoginPage() {
     login: {
       title: 'Inicia sesión en GameWeb',
       subtitle:
-        'Accede con tu correo @gmail.com y tu contraseña para gestionar tu perfil.',
+        'Accede con tu correo y tu contraseña para gestionar tu perfil.',
     },
     'admin-login': {
       title: 'Acceso administrador',
       subtitle:
         'Ingresa manualmente tus credenciales de administrador. Por seguridad, los campos nunca se rellenan automáticamente.',
     },
-    'forgot-password': {
-      title: 'Recuperar contraseña',
-      subtitle: 'Te ayudaremos a restablecer el acceso a tu cuenta.',
-    },
-    'reset-password': {
-      title: 'Crea una nueva contraseña',
-      subtitle: 'Elige una contraseña segura para tu cuenta.',
-    },
     register: {
       title: 'Crea tu perfil de jugador',
-      subtitle: 'Regístrate con un correo @gmail.com y personaliza tu cuenta.',
-    },
-    'verify-email': {
-      title: 'Verifica tu correo',
-      subtitle: 'Ingresa el código de verificación para continuar.',
+      subtitle: 'Usa cualquier correo de prueba y crea tu contraseña para empezar.',
     },
     profile: {
       title: 'Tu perfil',
@@ -1322,8 +956,6 @@ function LoginPage() {
         ? 'max-w-7xl'
         : view === 'register'
           ? 'max-w-xl'
-            : view === 'verify-email' || view === 'forgot-password' || view === 'reset-password'
-              ? 'max-w-md'
             : view === 'profile'
             ? 'max-w-2xl'
             : 'max-w-md'
@@ -1385,11 +1017,11 @@ function LoginPage() {
               <input
                 id="login-identifier"
                 name="identifier"
-                type="email"
+                type="text"
                 autoComplete="email"
                 value={loginForm.identifier}
                 onChange={handleLoginChange}
-                placeholder="tucorreo@gmail.com"
+                placeholder="correo-de-prueba"
                 aria-invalid={Boolean(loginErrors.identifier)}
                 aria-describedby={
                   loginErrors.identifier ? 'login-identifier-error' : undefined
@@ -1447,20 +1079,6 @@ function LoginPage() {
             </div>
 
             <p className="arcade-hint text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setForgotEmail(loginForm.identifier)
-                  setResetMessage(null)
-                  setView('forgot-password')
-                }}
-                className="arcade-link"
-              >
-                ¿No recuerdas tu contraseña?
-              </button>
-            </p>
-
-            <p className="arcade-hint text-center">
               ¿Aún no tienes cuenta?{' '}
               <button
                 type="button"
@@ -1475,178 +1093,6 @@ function LoginPage() {
               Cuenta de prueba: jugador.test@gmail.com ·
               contraseña <strong>Arcade2024</strong>
             </p>
-          </form>
-        )}
-
-        {view === 'forgot-password' && (
-          <form
-            className="animate-fade-slide space-y-5"
-            onSubmit={handleForgotPasswordSubmit}
-            noValidate
-          >
-            <div>
-              <label htmlFor="forgot-email" className={labelClass}>
-                Correo @gmail.com de tu cuenta
-              </label>
-              <input
-                id="forgot-email"
-                type="email"
-                autoComplete="email"
-                value={forgotEmail}
-                onChange={(event) => {
-                  setForgotEmail(event.target.value)
-                  setResetMessage(null)
-                }}
-                placeholder="tucorreo@gmail.com"
-                className={inputBase}
-              />
-            </div>
-            <FormMessage status={resetMessage} />
-            <button
-              type="submit"
-              className="arcade-btn arcade-btn-primary w-full px-4 py-3"
-            >
-              <Mail className="h-4 w-4" aria-hidden="true" />
-              Solicitar código
-            </button>
-            <button
-              type="button"
-              onClick={() => setView('login')}
-              className="arcade-btn arcade-btn-secondary w-full px-4 py-3"
-            >
-              Volver al inicio de sesión
-            </button>
-          </form>
-        )}
-
-        {view === 'verify-email' && verification && !pendingRegistration && (
-          <form
-            className="animate-fade-slide space-y-5"
-            onSubmit={handleVerificationSubmit}
-            noValidate
-          >
-            <p className="arcade-hint text-center">
-              Verifica tu identidad para restablecer la contraseña:{' '}
-              <span className="text-white">{verification.email}</span>
-            </p>
-            <div className="arcade-message arcade-message-info">
-              <Mail className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-              <p>
-                Prototipo local: código de demostración{' '}
-                <strong className="select-all text-white">
-                  {verification.code}
-                </strong>
-                . No se envió ningún correo.
-              </p>
-            </div>
-            <div>
-              <label htmlFor="verification-code" className={labelClass}>
-                Código de verificación
-              </label>
-              <input
-                id="verification-code"
-                name="verificationCode"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                pattern="[0-9]{6}"
-                value={verificationCode}
-                onChange={(event) => {
-                  setVerificationCode(
-                    event.target.value.replace(/\D/g, '').slice(0, 6),
-                  )
-                  setVerificationMessage(null)
-                }}
-                placeholder="000000"
-                className={`${inputBase} text-center font-mono text-2xl tracking-[0.5em]`}
-                aria-describedby="verification-countdown"
-              />
-              <p
-                id="verification-countdown"
-                className="arcade-hint mt-2 flex items-center justify-center gap-1"
-                aria-live="polite"
-              >
-                <Clock3 className="h-4 w-4" aria-hidden="true" />
-                {verificationRemaining > 0
-                  ? `El código vence en ${verificationRemaining} s`
-                  : 'Código vencido'}
-              </p>
-            </div>
-            <FormMessage status={verificationMessage} />
-            <button
-              type="submit"
-              className="arcade-btn arcade-btn-primary w-full px-4 py-3"
-            >
-              Verificar código
-            </button>
-            <button
-              type="button"
-              onClick={handleResendVerification}
-              disabled={verificationRemaining > 0}
-              className="arcade-btn arcade-btn-secondary w-full px-4 py-3"
-            >
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              {verificationRemaining > 0
-                ? `Solicitar otro código en ${verificationRemaining} s`
-                : 'Solicitar código nuevo'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setVerification(null)
-                setVerificationCode('')
-                setVerificationRemaining(0)
-                setView('login')
-              }}
-              className="arcade-link w-full text-center"
-            >
-              Cancelar
-            </button>
-          </form>
-        )}
-
-        {view === 'reset-password' && (
-          <form
-            className="animate-fade-slide space-y-5"
-            onSubmit={handleResetPasswordSubmit}
-            noValidate
-          >
-            <p className="arcade-hint text-center">
-              Cuenta verificada: <span className="text-white">{resetEmail}</span>
-            </p>
-            <PasswordField
-              id="reset-password"
-              name="password"
-              label="Nueva contraseña"
-              value={resetForm.password}
-              onChange={handleResetChange}
-              error={resetErrors.password}
-              visible={showRegisterPassword}
-              onToggle={() => setShowRegisterPassword((value) => !value)}
-              autoComplete="new-password"
-              placeholder="Escribe una nueva contraseña"
-            />
-            <PasswordField
-              id="reset-confirm-password"
-              name="confirmPassword"
-              label="Confirmar nueva contraseña"
-              value={resetForm.confirmPassword}
-              onChange={handleResetChange}
-              error={resetErrors.confirmPassword}
-              visible={showRegisterPassword}
-              onToggle={() => setShowRegisterPassword((value) => !value)}
-              autoComplete="new-password"
-              placeholder="Repite la contraseña"
-            />
-            <FormMessage status={resetMessage} />
-            <button
-              type="submit"
-              disabled={resetBusy}
-              className="arcade-btn arcade-btn-primary w-full px-4 py-3"
-            >
-              {resetBusy ? 'Actualizando...' : 'Guardar contraseña'}
-            </button>
           </form>
         )}
 
@@ -1729,7 +1175,7 @@ function LoginPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="register-name" className={labelClass}>
-                  Nombre completo
+                  Nombre completo <span className="arcade-optional">(opcional)</span>
                 </label>
                 <input
                   id="register-name"
@@ -1793,11 +1239,11 @@ function LoginPage() {
                 <input
                   id="register-email"
                   name="email"
-                  type="email"
+                  type="text"
                   autoComplete="email"
                   value={registerForm.email}
                   onChange={handleRegisterChange}
-                  placeholder="tucorreo@gmail.com"
+                  placeholder="correo-de-prueba"
                   aria-invalid={Boolean(registerErrors.email)}
                   aria-describedby={
                     registerErrors.email ? 'register-email-error' : undefined
@@ -1815,7 +1261,7 @@ function LoginPage() {
 
               <div>
                 <label htmlFor="register-dni" className={labelClass}>
-                  DNI
+                  DNI <span className="arcade-optional">(opcional)</span>
                 </label>
                 <input
                   id="register-dni"
@@ -1846,7 +1292,7 @@ function LoginPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="register-gender" className={labelClass}>
-                  Género
+                  Género <span className="arcade-optional">(opcional)</span>
                 </label>
                 <select
                   id="register-gender"
@@ -1984,81 +1430,6 @@ function LoginPage() {
               className="arcade-btn arcade-btn-primary w-full px-4 py-3"
             >
               {registerBusy ? 'Creando perfil...' : 'Crear mi cuenta'}
-            </button>
-          </form>
-        )}
-
-        {view === 'verify-email' && pendingRegistration && (
-          <form
-            className="animate-fade-slide space-y-5"
-            onSubmit={handleOtpSubmit}
-            noValidate
-          >
-            <p className="arcade-hint text-center">
-              Ingresa el código enviado a{' '}
-              <span className="text-white">
-                {pendingRegistration.email.trim()}
-              </span>
-              .
-            </p>
-            <div>
-              <label htmlFor="register-otp" className={labelClass}>
-                Código de verificación
-              </label>
-              <input
-                id="register-otp"
-                name="otp"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                value={otpCode}
-                onChange={(event) => {
-                  setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))
-                  setOtpStatus(null)
-                }}
-                placeholder="000000"
-                aria-label="Código OTP de seis dígitos"
-                className={`${inputBase} text-center font-mono text-2xl tracking-[0.5em]`}
-              />
-              <p className="arcade-hint mt-2 text-center" aria-live="polite">
-                {otpRemaining > 0
-                  ? `El código vence en ${otpRemaining} s`
-                  : 'El código venció. Solicita uno nuevo.'}
-              </p>
-            </div>
-            <FormMessage status={otpStatus} />
-            <button
-              type="submit"
-              disabled={otpBusy || otpRemaining === 0}
-              className="arcade-btn arcade-btn-primary w-full px-4 py-3"
-            >
-              {otpBusy ? 'Verificando...' : 'Verificar código'}
-            </button>
-            <button
-              type="button"
-              onClick={handleOtpResend}
-              disabled={otpBusy || otpRemaining > 0}
-              className="arcade-btn arcade-btn-secondary w-full px-4 py-3"
-            >
-              {otpBusy
-                ? 'Procesando...'
-                : otpRemaining > 0
-                  ? `Reenviar código en ${otpRemaining} s`
-                  : 'Reenviar código'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPendingRegistration(null)
-                setOtpCode('')
-                setOtpStatus(null)
-                setView('register')
-              }}
-              className="arcade-link w-full text-center"
-            >
-              Volver al registro
             </button>
           </form>
         )}

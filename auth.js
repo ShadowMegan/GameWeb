@@ -1,7 +1,6 @@
 export function validarLogin(correo, clave) {
-  // Validar formato de correo mediante regex
-  const regexCorreo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const esCorreoValido = regexCorreo.test(correo);
+  // GameWeb acepta correos de prueba; solo requiere un identificador no vacío.
+  const esCorreoValido = typeof correo === 'string' && correo.trim().length > 0;
 
   // Validar longitud mínima de contraseña de 12 caracteres
   const esClaveValida = clave && clave.length >= 12;
