@@ -5,6 +5,7 @@ const MIN_LOAD_MS = 1400
 
 const GAME_LOADERS = {
   'neon-flappy': () => import('./NeonFlappy.jsx'),
+  'neon-doom': () => import('./NeonDoom.jsx'),
   'retro-snake': () => import('./RetroSnake.jsx'),
   'neon-tetris': () => import('./NeonTetris.jsx'),
   'cyber-pacman': () => import('./CyberPacman.jsx'),

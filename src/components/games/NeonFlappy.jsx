@@ -16,8 +16,8 @@ const FLAP_VELOCITY = -390
 const PIPE_WIDTH = 78
 const PIPE_GAP = 150
 const PIPE_SPACING = 250
-const START_SPEED = 180
-const MAX_SPEED = 260
+const START_SPEED = 150
+const MAX_SPEED = 205
 
 function createPipe(x) {
   const gapTop = 74 + Math.random() * (FLOOR_Y - PIPE_GAP - 148)
@@ -36,7 +36,7 @@ function createGame(highScore) {
 }
 
 function getObstacleSpeed(score) {
-  return Math.min(MAX_SPEED, START_SPEED + Math.floor(score) * 2.5)
+  return Math.min(MAX_SPEED, START_SPEED + Math.floor(score / 15) * 2.5)
 }
 
 function circleRectCollision(cx, cy, radius, rect) {
@@ -87,7 +87,7 @@ function updateGame(game, dt) {
     }
     if (!pipe.scored && pipe.x + PIPE_WIDTH < BIRD_X - BIRD_RADIUS) {
       pipe.scored = true
-      game.score += 1
+      game.score += 15
       game.highScore = Math.max(game.highScore, game.score)
     }
   }
@@ -300,7 +300,7 @@ function NeonFlappy({ userId, onScore, onStateChange, pauseRequested = false }) 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="arcade-meta-label flex flex-wrap items-center gap-x-4">
           <span>Puntos: <span style={{ color: ACCENT }}>{score}</span></span>
-          <span>Criterio: <span style={{ color: '#ffd319' }}>+1 por tubería</span></span>
+          <span>Criterio: <span style={{ color: '#ffd319' }}>+15 por tubería</span></span>
           <span>Velocidad: <span style={{ color: ACCENT }}>{getObstacleSpeed(score)} px/s</span></span>
         </p>
         <div className="flex items-center gap-2">
@@ -338,7 +338,7 @@ function NeonFlappy({ userId, onScore, onStateChange, pauseRequested = false }) 
                 <p className="arcade-subtitle">NEON FLAPPY</p>
                 <p className="arcade-hint max-w-sm">
                   Presiona ESPACIO, clic izquierdo o toca para impulsarte.
-                  Supera tuberías y suma 1 punto por cada hueco.
+                  Supera tuberías y suma 15 puntos por cada hueco.
                 </p>
               </>
             )}
@@ -375,7 +375,7 @@ function NeonFlappy({ userId, onScore, onStateChange, pauseRequested = false }) 
       </div>
 
       <p className="arcade-hint text-center">
-        ESPACIO, clic izquierdo o toque: impulso · Esquiva las tuberías · 1 punto por obstáculo
+        ESPACIO, clic izquierdo o toque: impulso · Esquiva las tuberías · 15 puntos por obstáculo
       </p>
     </div>
   )
