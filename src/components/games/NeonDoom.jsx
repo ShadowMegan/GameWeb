@@ -99,7 +99,30 @@ function createGame(highScore) {
     highScore,
     firing: 0,
     transitionTimer: 0,
+    hitMarker: 0,
   }
+}
+
+function findAimTarget(game) {
+  let target = null
+  let bestAngle = 0.075
+  for (const enemy of game.enemies) {
+    if (enemy.health <= 0) continue
+    const dx = enemy.x - game.player.x
+    const dy = enemy.y - game.player.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    const enemyAngle = Math.atan2(dy, dx)
+    const difference = Math.abs(angleDifference(enemyAngle, game.player.angle))
+    if (
+      difference < bestAngle &&
+      distance < 8 &&
+      hasLineOfSight(game.player.x, game.player.y, enemy.x, enemy.y)
+    ) {
+      target = enemy
+      bestAngle = difference
+    }
+  }
+  return target
 }
 
 function hasLineOfSight(fromX, fromY, toX, toY) {
@@ -131,8 +154,8 @@ function updateGame(game, dt, keys) {
 
   let forward = 0
   let strafe = 0
-  if (keys.w) forward += 1
-  if (keys.s) forward -= 1
+  if (keys.w || keys.up) forward += 1
+  if (keys.s || keys.down) forward -= 1
   if (keys.a) strafe -= 1
   if (keys.d) strafe += 1
 
@@ -153,6 +176,7 @@ function updateGame(game, dt, keys) {
   }
 
   game.firing = Math.max(0, game.firing - dt)
+  game.hitMarker = Math.max(0, game.hitMarker - dt)
 
   for (const enemy of game.enemies) {
     if (enemy.health <= 0) continue
@@ -214,27 +238,10 @@ function fireWeapon(game) {
   if (game.status !== 'running' || game.ammo <= 0) return
   game.ammo -= 1
   game.firing = 0.12
-
-  let target = null
-  let bestAngle = 0.075
-  for (const enemy of game.enemies) {
-    if (enemy.health <= 0) continue
-    const dx = enemy.x - game.player.x
-    const dy = enemy.y - game.player.y
-    const distance = Math.sqrt(dx * dx + dy * dy)
-    const enemyAngle = Math.atan2(dy, dx)
-    const difference = Math.abs(angleDifference(enemyAngle, game.player.angle))
-    if (
-      difference < bestAngle &&
-      distance < 8 &&
-      hasLineOfSight(game.player.x, game.player.y, enemy.x, enemy.y)
-    ) {
-      target = enemy
-      bestAngle = difference
-    }
-  }
+  const target = findAimTarget(game)
 
   if (target) {
+    game.hitMarker = 0.14
     target.health -= 34
     target.flash = 0.16
     if (target.health <= 0) {
@@ -250,6 +257,67 @@ function fireWeapon(game) {
       }
     }
   }
+}
+
+function drawCrosshair(ctx, game) {
+  if (game.status !== 'running') return
+
+  const centerX = CANVAS_WIDTH / 2
+  const centerY = CANVAS_HEIGHT / 2
+  const onTarget = Boolean(findAimTarget(game))
+  const color = onTarget ? '#ff2e88' : '#00e5ff'
+
+  ctx.save()
+  ctx.translate(centerX, centerY)
+  ctx.lineWidth = 2
+  ctx.strokeStyle = 'rgba(5, 1, 10, 0.92)'
+  ctx.shadowBlur = 0
+  ctx.beginPath()
+  ctx.moveTo(-13, 0)
+  ctx.lineTo(-5, 0)
+  ctx.moveTo(5, 0)
+  ctx.lineTo(13, 0)
+  ctx.moveTo(0, -13)
+  ctx.lineTo(0, -5)
+  ctx.moveTo(0, 5)
+  ctx.lineTo(0, 13)
+  ctx.stroke()
+
+  ctx.strokeStyle = color
+  ctx.shadowColor = color
+  ctx.shadowBlur = 10
+  ctx.beginPath()
+  ctx.moveTo(-12, 0)
+  ctx.lineTo(-5, 0)
+  ctx.moveTo(5, 0)
+  ctx.lineTo(12, 0)
+  ctx.moveTo(0, -12)
+  ctx.lineTo(0, -5)
+  ctx.moveTo(0, 5)
+  ctx.lineTo(0, 12)
+  ctx.stroke()
+
+  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.arc(0, 0, 1.5, 0, Math.PI * 2)
+  ctx.fill()
+
+  if (game.hitMarker > 0) {
+    ctx.strokeStyle = '#ffffff'
+    ctx.shadowColor = '#ffffff'
+    ctx.lineWidth = 2.5
+    ctx.beginPath()
+    ctx.moveTo(-9, -9)
+    ctx.lineTo(-4, -4)
+    ctx.moveTo(9, -9)
+    ctx.lineTo(4, -4)
+    ctx.moveTo(-9, 9)
+    ctx.lineTo(-4, 4)
+    ctx.moveTo(9, 9)
+    ctx.lineTo(4, 4)
+    ctx.stroke()
+  }
+  ctx.restore()
 }
 
 function drawWallScene(ctx, game) {
@@ -389,6 +457,7 @@ function drawWallScene(ctx, game) {
     ctx.fill()
   }
   ctx.restore()
+  drawCrosshair(ctx, game)
 
   if (game.transitionTimer > 0) {
     ctx.save()
@@ -403,7 +472,16 @@ function drawWallScene(ctx, game) {
 function NeonDoom({ userId, onScore, onStateChange, pauseRequested = false }) {
   const canvasRef = useRef(null)
   const gameRef = useRef(createGame(readHighScore(userId, GAME_ID)))
-  const keysRef = useRef({ w: false, a: false, s: false, d: false, left: false, right: false })
+  const keysRef = useRef({
+    w: false,
+    a: false,
+    s: false,
+    d: false,
+    left: false,
+    right: false,
+    up: false,
+    down: false,
+  })
   const [status, setStatus] = useState('idle')
   const [score, setScore] = useState(0)
   const [health, setHealth] = useState(100)
@@ -413,6 +491,7 @@ function NeonDoom({ userId, onScore, onStateChange, pauseRequested = false }) {
     readHighScore(userId, GAME_ID),
   )
   const [newRecord, setNewRecord] = useState(false)
+  const [mouseMode, setMouseMode] = useState('free')
   const lastSavedScoreRef = useRef(highScore)
   const { isPaused, pausedRef, togglePause } = useGamePause(
     status === 'running',
@@ -486,6 +565,24 @@ function NeonDoom({ userId, onScore, onStateChange, pauseRequested = false }) {
   }, [isPaused, status, score, wave, onStateChange])
 
   useEffect(() => {
+    function handlePointerLockChange() {
+      if (!document.pointerLockElement) {
+        setMouseMode('free')
+      }
+    }
+    document.addEventListener('pointerlockchange', handlePointerLockChange)
+    return () =>
+      document.removeEventListener('pointerlockchange', handlePointerLockChange)
+  }, [])
+
+  useEffect(() => {
+    if (isPaused && document.pointerLockElement) {
+      document.exitPointerLock()
+      setMouseMode('free')
+    }
+  }, [isPaused])
+
+  useEffect(() => {
     if (status !== 'over' || score <= 0) return
     if (score > lastSavedScoreRef.current) {
       lastSavedScoreRef.current = score
@@ -497,11 +594,14 @@ function NeonDoom({ userId, onScore, onStateChange, pauseRequested = false }) {
 
   useEffect(() => {
     function keyDown(event) {
-      if (
-        isPaused ||
-        event.key === 'Escape' ||
-        event.key.toLowerCase() === 'p'
-      ) return
+      if (event.key === 'Escape' || event.key.toLowerCase() === 'p') {
+        if (document.pointerLockElement) {
+          document.exitPointerLock()
+        }
+        setMouseMode('free')
+        return
+      }
+      if (isPaused) return
       const key = event.key.toLowerCase()
       if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
         event.preventDefault()
@@ -514,6 +614,14 @@ function NeonDoom({ userId, onScore, onStateChange, pauseRequested = false }) {
       if (event.key === 'ArrowRight') {
         event.preventDefault()
         keysRef.current.right = true
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        keysRef.current.up = true
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        keysRef.current.down = true
       }
       if (event.key === ' ' || key === 'enter') {
         event.preventDefault()
@@ -531,6 +639,8 @@ function NeonDoom({ userId, onScore, onStateChange, pauseRequested = false }) {
       }
       if (event.key === 'ArrowLeft') keysRef.current.left = false
       if (event.key === 'ArrowRight') keysRef.current.right = false
+      if (event.key === 'ArrowUp') keysRef.current.up = false
+      if (event.key === 'ArrowDown') keysRef.current.down = false
     }
     window.addEventListener('keydown', keyDown)
     window.addEventListener('keyup', keyUp)
@@ -542,10 +652,16 @@ function NeonDoom({ userId, onScore, onStateChange, pauseRequested = false }) {
 
   function handlePointerMove(event) {
     if (gameRef.current.status !== 'running' || pausedRef.current) return
-    const rect = event.currentTarget.getBoundingClientRect()
-    if (!rect.width) return
-    const position = (event.clientX - rect.left) / rect.width
-    gameRef.current.player.angle += ((position - 0.5) * 0.012)
+    if (mouseMode === 'locked' && document.pointerLockElement === canvasRef.current) {
+      gameRef.current.player.angle += (event.movementX || 0) * 0.0022
+      return
+    }
+    if (mouseMode === 'locked') {
+      const rect = event.currentTarget.getBoundingClientRect()
+      if (!rect.width) return
+      const position = (event.clientX - rect.left) / rect.width
+      gameRef.current.player.angle += ((position - 0.5) * 0.008)
+    }
   }
 
   function handlePointerDown(event) {
@@ -553,8 +669,33 @@ function NeonDoom({ userId, onScore, onStateChange, pauseRequested = false }) {
     if (gameRef.current.status === 'running') {
       fireWeapon(gameRef.current)
       syncHud()
+      if (
+        mouseMode === 'locked' &&
+        document.pointerLockElement !== canvasRef.current &&
+        canvasRef.current?.requestPointerLock
+      ) {
+        canvasRef.current.requestPointerLock()
+      }
     } else {
       startGame()
+    }
+  }
+
+  function toggleMouseMode() {
+    if (mouseMode === 'locked') {
+      if (document.pointerLockElement) {
+        document.exitPointerLock()
+      }
+      setMouseMode('free')
+      return
+    }
+
+    setMouseMode('locked')
+    if (
+      status === 'running' &&
+      canvasRef.current?.requestPointerLock
+    ) {
+      canvasRef.current.requestPointerLock()
     }
   }
 
@@ -571,6 +712,21 @@ function NeonDoom({ userId, onScore, onStateChange, pauseRequested = false }) {
             <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Récord:{' '}
             <span style={{ color: '#ffd319' }}>{highScore}</span>
           </p>
+          <button
+            type="button"
+            onClick={toggleMouseMode}
+            aria-pressed={mouseMode === 'locked'}
+            className="arcade-btn arcade-btn-secondary arcade-btn-sm"
+            title={
+              mouseMode === 'locked'
+                ? 'Liberar el cursor del juego'
+                : 'Capturar el cursor para girar la cámara'
+            }
+          >
+            {mouseMode === 'locked'
+              ? 'MOUSE BLOQUEADO'
+              : 'MOUSE LIBRE'}
+          </button>
           {status === 'running' && (
             <GamePauseButton isPaused={isPaused} onToggle={togglePause} />
           )}
@@ -600,7 +756,7 @@ function NeonDoom({ userId, onScore, onStateChange, pauseRequested = false }) {
               <>
                 <p className="arcade-subtitle">NEON DOOM</p>
                 <p className="arcade-hint max-w-md">
-                  W A S D se mueve · FLECHAS o mouse gira · ESPACIO o clic dispara
+                  W A S D mueve · FLECHAS gira · ARRIBA/ABAJO mueve · ESPACIO/clic dispara
                 </p>
               </>
             )}
@@ -659,7 +815,7 @@ function NeonDoom({ userId, onScore, onStateChange, pauseRequested = false }) {
       </div>
 
       <p className="arcade-hint text-center">
-        W A S D: mover · FLECHAS o mouse: girar · ESPACIO/clic: disparar · +100 por enemigo
+        W/A/S/D: mover · FLECHAS IZQ/DER: girar · ARRIBA/ABAJO: avanzar/retroceder · ESPACIO/clic: disparar · MOUSE BLOQUEADO/LIBRE alterna captura del cursor
       </p>
     </div>
   )
