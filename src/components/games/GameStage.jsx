@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowLeft, Gamepad2, RefreshCw } from 'lucide-react'
 const MIN_LOAD_MS = 1400
 
 const GAME_LOADERS = {
+  'neon-flappy': () => import('./NeonFlappy.jsx'),
   'retro-snake': () => import('./RetroSnake.jsx'),
   'neon-tetris': () => import('./NeonTetris.jsx'),
   'cyber-pacman': () => import('./CyberPacman.jsx'),

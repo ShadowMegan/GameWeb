@@ -3,6 +3,7 @@ import { deleteGameReviews } from './reviews.js'
 
 export const CATALOG_STORAGE_KEY = 'gameweb:catalog:games'
 export const CATALOG_EVENT = 'gameweb:catalog:updated'
+const NEON_FLAPPY_MIGRATION_KEY = 'gameweb:catalog:migration:neon-flappy-v1'
 
 export const GAME_ACCENTS = [
   '#00e5ff',
@@ -93,9 +94,35 @@ function persistCatalog(games, notify = true) {
 export function readCatalog() {
   const stored = readStoredCatalog()
   if (stored) {
-    return stored
+    const storedIds = new Set(stored.map((game) => game.id))
+    const neonFlappySeed = SEED_CATALOG.find(
+      (game) => game.id === 'neon-flappy',
+    )
+    const migrationApplied = canUseStorage()
+      ? window.localStorage.getItem(NEON_FLAPPY_MIGRATION_KEY) === 'done'
+      : false
+    const newBuiltIns = neonFlappySeed &&
+      !storedIds.has(neonFlappySeed.id) &&
+      !migrationApplied
+      ? [neonFlappySeed]
+      : []
+    if (newBuiltIns.length === 0) {
+      if (canUseStorage() && neonFlappySeed && storedIds.has(neonFlappySeed.id)) {
+        window.localStorage.setItem(NEON_FLAPPY_MIGRATION_KEY, 'done')
+      }
+      return stored
+    }
+    const merged = [...stored, ...newBuiltIns]
+    persistCatalog(merged, false)
+    if (canUseStorage()) {
+      window.localStorage.setItem(NEON_FLAPPY_MIGRATION_KEY, 'done')
+    }
+    return merged
   }
   persistCatalog(SEED_CATALOG, false)
+  if (canUseStorage()) {
+    window.localStorage.setItem(NEON_FLAPPY_MIGRATION_KEY, 'done')
+  }
   return SEED_CATALOG.map(normalizeGame)
 }
 

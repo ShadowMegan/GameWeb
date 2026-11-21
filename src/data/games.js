@@ -4,6 +4,16 @@ export const GAME_CATEGORIES = ['Todos', 'Arcade', 'Acción', 'Puzzle', 'Estrate
 
 export const GAMES = [
   {
+    id: 'neon-flappy',
+    name: 'Neon Flappy',
+    category: 'Arcade',
+    accent: '#00ffa3',
+    description:
+      'Pilot un dron neón a través de tuberías luminosas y supera el mayor número de huecos posible.',
+    howTo:
+      'Presiona ESPACIO, haz clic izquierdo o toca la pantalla para impulsarte. Esquiva las tuberías y suma 1 punto por cada obstáculo superado. El puntaje queda registrado en tu perfil.',
+  },
+  {
     id: 'retro-snake',
     name: 'Retro Snake',
     category: 'Arcade',
