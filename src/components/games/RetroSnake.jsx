@@ -18,6 +18,7 @@ import { usePausableTimeout } from './usePausableTimeout.js'
 const ACCENT = '#00e5ff'
 const GRID_SIZE = 15
 const STEP_MS = 140
+const MIN_STEP_MS = 65
 const POINTS_PER_APPLE = 10
 const MAX_PENDING = 3
 const OBSTACLE_MIN_DISTANCE = 5
@@ -258,6 +259,12 @@ function createSnakeGame(highScore) {
   }
 }
 
+function getStepMs(score, level) {
+  const applesSpeed = Math.floor(score / POINTS_PER_APPLE) * 5
+  const levelSpeed = (level - 1) * 4
+  return Math.max(MIN_STEP_MS, STEP_MS - applesSpeed - levelSpeed)
+}
+
 function createLevelState(previous) {
   const snake = createInitialSnake()
   const obstacles = generateObstacles(snake, previous.level + 1)
@@ -388,11 +395,12 @@ function RetroSnake({ userId, onScore, onStateChange, pauseRequested = false }) 
     if (status !== 'running' || isPaused) {
       return undefined
     }
+    const stepMs = getStepMs(score, level)
     const timer = window.setInterval(() => {
       setGame(stepSnake)
-    }, STEP_MS)
+    }, stepMs)
     return () => window.clearInterval(timer)
-  }, [status, isPaused])
+  }, [status, isPaused, score, level])
 
   function queueDirection(next) {
     setGame((current) => {
@@ -461,6 +469,10 @@ function RetroSnake({ userId, onScore, onStateChange, pauseRequested = false }) 
             <span style={{ color: ACCENT }}>
               {applesEaten}/{applesGoal}
             </span>
+          </span>
+          <span>
+            Velocidad:{' '}
+            <span style={{ color: '#ffd319' }}>{getStepMs(score, level)} ms</span>
           </span>
         </p>
         <div className="flex items-center gap-2">

@@ -22,7 +22,8 @@ const PLAYER_SPEED = 460
 const BOT_SPEED = 330
 const BALL_BASE_SPEED = 360
 const BALL_MAX_SPEED = 660
-const WIN_SCORE = 7
+const START_LIVES = 3
+const POINTS_PER_SCORE = 100
 const SERVE_DELAY = 0.75
 const MAX_BOUNCE_ANGLE = Math.PI / 3.4
 
@@ -43,7 +44,7 @@ function createGame() {
     playerY: (CANVAS_HEIGHT - PADDLE_HEIGHT) / 2,
     botY: (CANVAS_HEIGHT - PADDLE_HEIGHT) / 2,
     playerScore: 0,
-    botScore: 0,
+    lives: START_LIVES,
     serveTimer: 0,
     serveDirection: Math.random() < 0.5 ? -1 : 1,
   }
@@ -53,7 +54,7 @@ function launchBall(game) {
   const angle = (Math.random() * 0.7 - 0.35)
   game.ball.x = CANVAS_WIDTH / 2
   game.ball.y = CANVAS_HEIGHT / 2
-  game.ball.speed = BALL_BASE_SPEED
+  game.ball.speed = Math.min(game.ball.speed, BALL_MAX_SPEED)
   game.ball.vx =
     Math.cos(angle) * game.ball.speed * game.serveDirection
   game.ball.vy = Math.sin(angle) * game.ball.speed
@@ -65,7 +66,7 @@ function queueServe(game, direction) {
   game.ball.y = CANVAS_HEIGHT / 2
   game.ball.vx = 0
   game.ball.vy = 0
-  game.ball.speed = BALL_BASE_SPEED
+  game.ball.speed = Math.min(game.ball.speed, BALL_MAX_SPEED)
   game.serveDirection = direction
   game.serveTimer = SERVE_DELAY
 }
@@ -170,17 +171,15 @@ function updateGame(game, dt, keys) {
   }
 
   if (ball.x + BALL_RADIUS < 0) {
-    game.botScore += 1
+    game.lives = Math.max(0, game.lives - 1)
   } else if (ball.x - BALL_RADIUS > CANVAS_WIDTH) {
-    game.playerScore += 1
+    game.playerScore += POINTS_PER_SCORE
+    game.ball.speed = Math.min(game.ball.speed * 1.08, BALL_MAX_SPEED)
   } else {
     return
   }
 
-  if (
-    game.playerScore >= WIN_SCORE ||
-    game.botScore >= WIN_SCORE
-  ) {
+  if (game.lives <= 0) {
     game.status = 'over'
     game.ball.vx = 0
     game.ball.vy = 0
@@ -189,7 +188,7 @@ function updateGame(game, dt, keys) {
 
   queueServe(
     game,
-    game.playerScore > game.botScore ? 1 : -1,
+    game.playerScore > 0 ? 1 : -1,
   )
 }
 
@@ -244,7 +243,7 @@ function drawGame(ctx, game) {
   ctx.shadowColor = BOT_COLOR
   ctx.shadowBlur = 16
   ctx.fillStyle = BOT_COLOR
-  ctx.fillText(String(game.botScore), CANVAS_WIDTH * 0.73, 34)
+  ctx.fillText(String(game.lives), CANVAS_WIDTH * 0.73, 34)
   ctx.restore()
 
   drawPaddle(ctx, PADDLE_MARGIN, game.playerY, PLAYER_COLOR)
@@ -280,7 +279,7 @@ function PongGame({ userId, onScore, onStateChange, pauseRequested = false }) {
   const gameRef = useRef(createGame())
   const keysRef = useRef({ up: false, down: false })
   const [status, setStatus] = useState('idle')
-  const [scores, setScores] = useState({ player: 0, bot: 0 })
+  const [scores, setScores] = useState({ player: 0, lives: START_LIVES })
   const [newRecord, setNewRecord] = useState(false)
   const [highScore, setHighScore] = useState(() =>
     readHighScore(userId, GAME_ID),
@@ -305,7 +304,7 @@ function PongGame({ userId, onScore, onStateChange, pauseRequested = false }) {
     nextGame.serveTimer = SERVE_DELAY
     nextGame.serveDirection = Math.random() < 0.5 ? -1 : 1
     gameRef.current = nextGame
-    setScores({ player: 0, bot: 0 })
+    setScores({ player: 0, lives: START_LIVES })
     setNewRecord(false)
     setStatus('running')
   }, [])
@@ -343,16 +342,16 @@ function PongGame({ userId, onScore, onStateChange, pauseRequested = false }) {
       const game = gameRef.current
       const previousStatus = game.status
       const previousPlayerScore = game.playerScore
-      const previousBotScore = game.botScore
+      const previousLives = game.lives
 
       updateGame(game, dt, keysRef.current)
       drawGame(context, game)
 
       if (
         game.playerScore !== previousPlayerScore ||
-        game.botScore !== previousBotScore
+        game.lives !== previousLives
       ) {
-        setScores({ player: game.playerScore, bot: game.botScore })
+        setScores({ player: game.playerScore, lives: game.lives })
       }
       if (game.status !== previousStatus) {
         setStatus(game.status)
@@ -463,22 +462,16 @@ function PongGame({ userId, onScore, onStateChange, pauseRequested = false }) {
     keysRef.current[key] = pressed
   }
 
-  const playerWon = scores.player > scores.bot
-
   return (
     <div className="arcade-card flex flex-col gap-4 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="arcade-meta-label flex flex-wrap items-center gap-x-4 gap-y-1">
           <span>
-            Jugador:{' '}
+            Puntos:{' '}
             <span style={{ color: PLAYER_COLOR }}>{scores.player}</span>
           </span>
           <span>
-            Bot: <span style={{ color: BOT_COLOR }}>{scores.bot}</span>
-          </span>
-          <span>
-            Primero a{' '}
-            <span style={{ color: '#ffd319' }}>{WIN_SCORE}</span>
+            Vidas: <span style={{ color: BOT_COLOR }}>{scores.lives}</span> / {START_LIVES}
           </span>
         </p>
         <div className="flex items-center gap-2">
@@ -515,20 +508,21 @@ function PongGame({ userId, onScore, onStateChange, pauseRequested = false }) {
                 <p className="arcade-subtitle">NEON PONG</p>
                 <p className="arcade-hint max-w-sm">
                   Mueve tu paleta con W / S, las flechas o arrastrando sobre la
-                  mesa. Gana el primero en llegar a {WIN_SCORE} puntos.
+                  mesa. Conserva tus 3 vidas y gana 100 puntos por cada
+                  anotación; la pelota se acelera gradualmente.
                 </p>
               </>
             )}
             {status === 'over' && (
               <>
                 <h4 className="arcade-success-title text-sm">
-                  {playerWon ? '¡GANASTE!' : 'GAME OVER'}
+                  GAME OVER
                 </h4>
                 <p className="arcade-meta-label">
-                  Jugador:{' '}
+                  Puntos:{' '}
                   <span style={{ color: PLAYER_COLOR }}>{scores.player}</span>{' '}
-                  · Bot:{' '}
-                  <span style={{ color: BOT_COLOR }}>{scores.bot}</span>
+                  · Vidas:{' '}
+                  <span style={{ color: BOT_COLOR }}>{scores.lives}</span>
                 </p>
                 <p className="arcade-meta-label">
                   Récord:{' '}

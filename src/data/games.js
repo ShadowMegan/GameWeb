@@ -49,8 +49,8 @@ export const GAMES = [
     category: 'Arcade',
     accent: '#39ff14',
     description:
-      'El duelo de paletas más clásico: devuelve la pelota, supera al bot y llega primero a 7 puntos en una mesa de neón.',
+      'El duelo de paletas más clásico: devuelve la pelota, conserva tus 3 vidas y suma puntos en una mesa de neón.',
     howTo:
-      'Mueve tu paleta con W / S, las FLECHAS o arrastrando sobre la mesa. Cada punto se marca cuando la pelota pasa la paleta rival. Gana el primero en llegar a 7; tu puntaje queda registrado en tu perfil.',
+      'Mueve tu paleta con W / S, las FLECHAS o arrastrando sobre la mesa. Empiezas con 3 vidas y ganas 100 puntos por cada pelota que pasa la paleta del bot. Pierdes una vida si el bot devuelve el balón detrás de tu paleta.',
   },
 ]

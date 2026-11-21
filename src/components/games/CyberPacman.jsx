@@ -18,6 +18,7 @@ import { useGamePause } from './useGamePause.js'
 
 const ACCENT = '#ff2e88'
 const STEP_MS = 310
+const MIN_STEP_MS = 190
 const CHASE_PROBABILITY = 0.45
 const POINTS_PER_DOT = 10
 const LEVEL_BONUS = 50
@@ -92,6 +93,12 @@ const { walls: WALLS, dotStarts: DOT_STARTS, playerStart: PLAYER_START, ghostSta
 
 function keyFor(cell) {
   return `${cell.x},${cell.y}`
+}
+
+function getPacmanStepMs(score, level) {
+  const scoreSpeed = Math.floor(score / 100) * 8
+  const levelSpeed = (level - 1) * 14
+  return Math.max(MIN_STEP_MS, STEP_MS - scoreSpeed - levelSpeed)
 }
 
 function cellAt(row, x) {
@@ -187,7 +194,9 @@ function advancePacman(state) {
 
   const previousGhosts = state.ghosts
   let ghosts = state.ghosts.map((ghost) => {
-    if (ghost.kind === 'slow' && ticks % 2 === 1) {
+    const slowFrequency =
+      state.level >= 4 ? 3 : state.level >= 2 ? 2 : 2
+    if (ghost.kind === 'slow' && ticks % slowFrequency === 1) {
       return ghost
     }
     return moveGhost(ghost, player, chaseProbability)
@@ -392,6 +401,7 @@ function CyberPacman({
     if (status !== 'running' || isPaused) {
       return undefined
     }
+    const stepMs = getPacmanStepMs(score, game.level)
 
     let frameId = 0
     let lastTime = performance.now()
@@ -401,9 +411,9 @@ function CyberPacman({
       accumulator += now - lastTime
       lastTime = now
 
-      if (accumulator >= STEP_MS) {
-        const steps = Math.min(3, Math.floor(accumulator / STEP_MS))
-        accumulator = Math.min(accumulator - steps * STEP_MS, STEP_MS)
+      if (accumulator >= stepMs) {
+        const steps = Math.min(3, Math.floor(accumulator / stepMs))
+        accumulator = Math.min(accumulator - steps * stepMs, stepMs)
         setGame((current) => {
           let next = current
           for (let index = 0; index < steps; index += 1) {
@@ -418,7 +428,7 @@ function CyberPacman({
 
     frameId = window.requestAnimationFrame(loop)
     return () => window.cancelAnimationFrame(frameId)
-  }, [status, isPaused])
+  }, [status, isPaused, score, game.level])
 
   function startGame() {
     setGame(createFreshState(gameRef.current.highScore))
@@ -486,6 +496,9 @@ function CyberPacman({
           </span>
           <span>
             Fase: <span style={{ color: '#ffd319' }}>{game.level}</span>
+          </span>
+          <span>
+            Ritmo: <span style={{ color: ACCENT }}>{getPacmanStepMs(score, game.level)} ms</span>
           </span>
           <span className="flex items-center gap-2">
             Vidas: <LivesRow lives={game.lives} />

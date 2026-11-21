@@ -9,6 +9,7 @@ const ACCENT = '#ffd319'
 const COLS = 10
 const ROWS = 20
 const STEP_MS = 580
+const MIN_STEP_MS = 140
 const SOFT_DROP_POINTS = 1
 const HARD_DROP_POINTS = 2
 const LINE_POINTS = [0, 100, 300, 500, 800]
@@ -52,6 +53,15 @@ const SHAPES = {
 }
 
 const PIECE_KINDS = Object.keys(SHAPES)
+
+function getTetrisLevel(lines, score) {
+  return Math.max(1, 1 + Math.floor(lines / 5) + Math.floor(score / 2000))
+}
+
+function getTetrisStepMs(lines, score) {
+  const level = getTetrisLevel(lines, score)
+  return Math.max(MIN_STEP_MS, STEP_MS - (level - 1) * 55)
+}
 
 function emptyBoard() {
   return Array.from({ length: ROWS }, () => Array(COLS).fill(null))
@@ -302,7 +312,7 @@ function NeonTetris({ userId, onScore, onStateChange, pauseRequested = false }) 
     onStateChange?.({
       status: isPaused ? 'paused' : status,
       score,
-      level: lines,
+      level: getTetrisLevel(lines, score),
     })
   }, [isPaused, status, score, lines, onStateChange])
 
@@ -317,11 +327,12 @@ function NeonTetris({ userId, onScore, onStateChange, pauseRequested = false }) 
     if (status !== 'running' || isPaused) {
       return undefined
     }
+    const stepMs = getTetrisStepMs(lines, score)
     const timer = window.setInterval(() => {
       setGame(applyTetrisStep)
-    }, STEP_MS)
+    }, stepMs)
     return () => window.clearInterval(timer)
-  }, [status, isPaused])
+  }, [status, isPaused, lines, score])
 
   function startGame() {
     setGame(spawnState(gameRef.current.highScore))
@@ -396,7 +407,10 @@ function NeonTetris({ userId, onScore, onStateChange, pauseRequested = false }) 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="arcade-meta-label">
           Puntos: <span style={{ color: ACCENT }}>{score}</span> · Líneas:{' '}
-          <span style={{ color: ACCENT }}>{game.lines}</span>
+          <span style={{ color: ACCENT }}>{game.lines}</span> · Nivel:{' '}
+          <span style={{ color: '#ffd319' }}>
+            {getTetrisLevel(lines, score)} · {getTetrisStepMs(lines, score)} ms
+          </span>
         </p>
         <div className="flex items-center gap-2">
           <p className="arcade-meta-label flex items-center gap-1.5">

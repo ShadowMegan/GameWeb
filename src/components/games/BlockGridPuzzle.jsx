@@ -27,12 +27,20 @@ const PIECE_POOL = [
   { cells: [[0, 0], [1, 0], [1, 1], [2, 0]], weight: 1 },
 ]
 
-const TOTAL_WEIGHT = PIECE_POOL.reduce((sum, piece) => sum + piece.weight, 0)
-
-function pickPiece() {
-  let roll = Math.random() * TOTAL_WEIGHT
-  for (const piece of PIECE_POOL) {
-    roll -= piece.weight
+function pickPiece(score = 0) {
+  const difficulty = Math.min(3, Math.floor(score / 150))
+  const weightedPieces = PIECE_POOL.map((piece) => {
+    const size = piece.cells.length
+    const largeBonus = size >= 4 ? difficulty : size >= 3 ? Math.floor(difficulty / 2) : 0
+    return { ...piece, effectiveWeight: Math.max(1, piece.weight + largeBonus) }
+  })
+  const totalWeight = weightedPieces.reduce(
+    (sum, piece) => sum + piece.effectiveWeight,
+    0,
+  )
+  let roll = Math.random() * totalWeight
+  for (const piece of weightedPieces) {
+    roll -= piece.effectiveWeight
     if (roll <= 0) {
       return {
         id: `${Math.random().toString(36).slice(2)}-${Date.now()}`,
@@ -44,8 +52,30 @@ function pickPiece() {
   return null
 }
 
-function createHand() {
-  return [pickPiece(), pickPiece(), pickPiece()]
+function createHand(score = 0, grid = {}) {
+  const hand = [pickPiece(score), pickPiece(score), pickPiece(score)].filter(Boolean)
+  if (
+    hand.length > 0 &&
+    grid &&
+    !hand.some((piece) => {
+      for (let row = 0; row < GRID_SIZE; row += 1) {
+        for (let col = 0; col < GRID_SIZE; col += 1) {
+          if (canPlace(grid, piece.cells, row, col)) {
+            return true
+          }
+        }
+      }
+      return false
+    })
+  ) {
+    const playable = {
+      id: `${Math.random().toString(36).slice(2)}-${Date.now()}-playable`,
+      cells: [[0, 0]],
+      color: PIECE_PALETTE[Math.floor(Math.random() * PIECE_PALETTE.length)],
+    }
+    hand[0] = playable
+  }
+  return hand
 }
 
 function keyFor(row, col) {
@@ -289,7 +319,7 @@ function BlockGridPuzzle({
     pendingFlashRef.current = null
     flashPendingRef.current = false
     setGrid({})
-    setHand(createHand())
+    setHand(createHand(0, {}))
     setSelectedId(null)
     setHover(null)
     setFlashCells(null)
@@ -328,8 +358,11 @@ function BlockGridPuzzle({
     const lines = findFullLines(filled)
     const cleared = lines.fullRows.length + lines.fullCols.length
     const remainingHand = hand.filter((candidate) => candidate.id !== piece.id)
-    const nextHand = remainingHand.length > 0 ? remainingHand : createHand()
     const nextScore = score + piece.cells.length * CELL_POINTS + cleared * LINE_POINTS
+    const nextHand =
+      remainingHand.length > 0
+        ? remainingHand
+        : createHand(nextScore, filled)
 
     setSelectedId(null)
     setHover(null)
@@ -380,7 +413,8 @@ function BlockGridPuzzle({
     <div className="arcade-card relative flex flex-col gap-4 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="arcade-meta-label">
-          Puntos: <span style={{ color: ACCENT }}>{score}</span>
+          Puntos: <span style={{ color: ACCENT }}>{score}</span> · Complejidad:{' '}
+          <span style={{ color: '#ffd319' }}>{Math.min(4, 1 + Math.floor(score / 150))}</span>
         </p>
         <div className="relative z-30 flex items-center gap-2">
           <p className="arcade-meta-label flex items-center gap-1.5">
