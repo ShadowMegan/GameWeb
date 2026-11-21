@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
 const { randomUUID } = require('crypto');
@@ -53,20 +52,9 @@ app.post('/api/auth/register', async (req, res) => {
     const nextUsers = [...users, user];
     saveUsers(nextUsers);
     users = nextUsers;
-    if (!process.env.JWT_SECRET) {
-      console.error('Falta configurar JWT_SECRET para emitir tokens de autenticación.');
-      return res.status(500).json({ success: false, message: 'La autenticación no está configurada.' });
-    }
-
-    const token = jwt.sign(
-      { sub: user.id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
     res.status(201).json({
       success: true,
       message: 'Usuario registrado correctamente.',
-      token,
       user: { id: user.id, email: user.email }
     });
   } catch (error) {
@@ -87,17 +75,11 @@ app.post('/api/auth/login', async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       return res.status(401).json({ success: false, message: 'Correo o contraseña incorrectos.' });
     }
-    if (!process.env.JWT_SECRET) {
-      console.error('Falta configurar JWT_SECRET para emitir tokens de autenticación.');
-      return res.status(500).json({ success: false, message: 'La autenticación no está configurada.' });
-    }
-
-    const token = jwt.sign(
-      { sub: user.id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-    res.json({ success: true, token });
+    res.json({
+      success: true,
+      message: 'Sesión iniciada correctamente.',
+      user: { id: user.id, email: user.email }
+    });
   } catch (error) {
     console.error('Error al autenticar el usuario:', error);
     res.status(500).json({ success: false, message: 'Error al iniciar sesión.' });

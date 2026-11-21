@@ -28,10 +28,7 @@ import { markUserOffline, markUserOnline } from '../lib/presence.js'
 import { readHighScore, readPlayedGames } from '../lib/scores.js'
 
 const USERS_KEY = 'gameweb_users'
-const API_URL = (
-  import.meta.env.VITE_AUTH_API_URL ||
-  'https://gameweb-u50w.onrender.com/api/auth'
-).replace(/\/+$/, '')
+const SESSION_KEY = 'gameweb_session_dni'
 const DNI_LENGTH = 8
 const MIN_PASSWORD_LENGTH = 8
 const MAX_PASSWORD_LENGTH = 32
@@ -142,68 +139,6 @@ function validateEmail(rawEmail) {
   return ''
 }
 
-async function readAuthApiResponse(response, fallbackMessage) {
-  const responseText = await response.text()
-  let result
-  try {
-    result = JSON.parse(responseText)
-  } catch (error) {
-    console.error('Respuesta del servidor:', responseText)
-    throw new Error(
-      'El backend de autenticación devolvió una respuesta no válida. Verifica VITE_AUTH_API_URL y que el servicio esté disponible.',
-      { cause: error },
-    )
-  }
-  if (!result || typeof result !== 'object') {
-    console.error('Respuesta del servidor:', responseText)
-    throw new Error(fallbackMessage)
-  }
-
-  if (
-    !response.ok ||
-    result.success === false ||
-    result.verified === false ||
-    result.valid === false
-  ) {
-    console.error('Respuesta del servidor:', responseText)
-    throw new Error(result.message || result.error || fallbackMessage)
-  }
-
-  return result
-}
-
-async function requestAuthApi(endpoint, payload, fallbackMessage) {
-  const cleanBase = API_URL.replace(/\/+$/, '')
-  let response
-
-  try {
-    response = await fetch(`${cleanBase}/${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-  } catch (error) {
-    if (error instanceof TypeError) {
-      console.error('Error al conectar con el backend de autenticación:', error)
-      throw new Error(
-        `No se pudo conectar con el backend de autenticación (${cleanBase}). Verifica VITE_AUTH_API_URL, que el backend esté disponible y su configuración CORS.`,
-        { cause: error },
-      )
-    }
-    throw error
-  }
-
-  return readAuthApiResponse(response, fallbackMessage)
-}
-
-async function registerAuthUser(email, password) {
-  return requestAuthApi(
-    'register',
-    { email, password },
-    'No se pudo registrar la cuenta.',
-  )
-}
-
 function validatePhone(phone) {
   if (!phone.trim()) {
     return ''
@@ -288,6 +223,7 @@ function createUniqueUsername(base, users, dni) {
 function buildRegisterErrors(form, users) {
   const errors = {}
   const email = form.email.trim().toLowerCase()
+  const dni = form.dni.trim()
 
   const phoneError = validatePhone(form.phone)
   if (phoneError) {
@@ -299,6 +235,12 @@ function buildRegisterErrors(form, users) {
     errors.email = emailError
   } else if (Object.values(users).some((user) => user.email === email)) {
     errors.email = 'Ya existe una cuenta registrada con este correo.'
+  }
+
+  if (dni && (!/^\d{8}$/.test(dni) || users[dni])) {
+    errors.dni = users[dni]
+      ? 'Ese DNI ya está registrado.'
+      : 'El DNI debe tener exactamente 8 dígitos.'
   }
 
   if (form.username.trim()) {
@@ -341,6 +283,34 @@ async function hashPassword(password, salt) {
   return Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, '0'))
     .join('')
+}
+
+async function verifyPassword(password, user) {
+  if (user?.salt && user?.passwordHash) {
+    return (await hashPassword(password, user.salt)) === user.passwordHash
+  }
+
+  const demoPasswords = {
+    '12345678': 'Arcade2024',
+    '87654321': 'Password123',
+  }
+  return Boolean(demoPasswords[user?.dni] && password === demoPasswords[user.dni])
+}
+
+function createUniqueDni(users) {
+  let dni
+  do {
+    dni = String(Math.floor(10000000 + Math.random() * 90000000))
+  } while (users[dni])
+  return dni
+}
+
+function loadSessionDni() {
+  try {
+    return window.localStorage.getItem(SESSION_KEY) || ''
+  } catch {
+    return ''
+  }
 }
 
 function FormMessage({ status }) {
@@ -431,7 +401,7 @@ function PasswordField({
 function LoginPage() {
   const [users, setUsers] = useState(() => loadUsers())
   const [view, setView] = useState('login')
-  const [sessionDni, setSessionDni] = useState('')
+  const [sessionDni, setSessionDni] = useState(() => loadSessionDni())
   const [apiSessionUser, setApiSessionUser] = useState(null)
   const { themeId } = useTheme()
 
@@ -474,6 +444,25 @@ function LoginPage() {
         readPlayedGames(sessionUser.dni).includes(game.id),
       )
     : []
+
+  useEffect(() => {
+    if (!sessionDni) {
+      return
+    }
+    if (users[sessionDni]) {
+      setView('catalog')
+      const restoredUser = users[sessionDni]
+      setProfileForm({
+        username: restoredUser.username,
+        description: restoredUser.description,
+        avatar: restoredUser.avatar || 'gamepad',
+        neonColor: restoredUser.neonColor || 'pink',
+      })
+    } else {
+      setSessionDni('')
+      window.localStorage.removeItem(SESSION_KEY)
+    }
+  }, [])
 
   useEffect(() => {
     if (!sessionUserId) {
@@ -646,64 +635,27 @@ function LoginPage() {
 
     setLoginBusy(true)
     try {
-      const data = await requestAuthApi(
-        'login',
-        {
-          email: identifier,
-          password: loginForm.password,
-        },
-        'No se pudo iniciar sesión.',
+      const normalizedIdentifier = identifier.toLowerCase()
+      const user = Object.values(users).find((candidate) =>
+        candidate.dni === identifier ||
+        candidate.username?.toLowerCase() === normalizedIdentifier ||
+        candidate.email?.toLowerCase() === normalizedIdentifier
       )
-      if (typeof data.token !== 'string' || !data.token) {
-        throw new Error('El servidor no devolvió un token de acceso válido.')
-      }
-
-      window.localStorage.setItem('token', data.token)
-
-      let user = users[identifier]
-      if (!user && identifier.includes('@')) {
-        user = Object.values(users).find(
-          (candidate) => candidate.email === identifier.toLowerCase(),
-        )
+      if (!user || !(await verifyPassword(loginForm.password, user))) {
+        throw new Error('Correo, usuario o DNI y contraseña incorrectos.')
       }
 
       setIsAdmin(false)
-      if (user) {
-        setSessionDni(user.dni)
-        setApiSessionUser(null)
-        setProfileForm({
-          username: user.username,
-          description: user.description,
-          avatar: user.avatar || 'gamepad',
-          neonColor: user.neonColor || 'pink',
-        })
-      } else {
-        const apiUser =
-          data.user && typeof data.user === 'object' ? data.user : data
-        const username =
-          apiUser.username ||
-          (identifier.includes('@') ? identifier.split('@')[0] : identifier)
-        const authenticatedUser = {
-          dni: String(apiUser.dni ?? apiUser.id ?? identifier),
-          name: apiUser.name || username,
-          username,
-          email: apiUser.email || (identifier.includes('@') ? identifier : ''),
-          phone: apiUser.phone || '',
-          gender: apiUser.gender || 'Prefiero no decirlo',
-          description: apiUser.description || '',
-          avatar: apiUser.avatar || 'gamepad',
-          neonColor: apiUser.neonColor || 'pink',
-          role: apiUser.role || 'user',
-        }
-        setSessionDni('')
-        setApiSessionUser(authenticatedUser)
-        setProfileForm({
-          username: authenticatedUser.username,
-          description: authenticatedUser.description,
-          avatar: authenticatedUser.avatar,
-          neonColor: authenticatedUser.neonColor,
-        })
-      }
+      setSessionDni(user.dni)
+      window.localStorage.setItem(SESSION_KEY, user.dni)
+      window.localStorage.removeItem('token')
+      setApiSessionUser(null)
+      setProfileForm({
+        username: user.username,
+        description: user.description,
+        avatar: user.avatar || 'gamepad',
+        neonColor: user.neonColor || 'pink',
+      })
       setProfileErrors({})
       setProfileStatus(null)
       setLoginMessage(null)
@@ -741,12 +693,10 @@ function LoginPage() {
 
     try {
       const email = registerForm.email.trim().toLowerCase()
-      const data = await registerAuthUser(email, registerForm.password)
-      if (typeof data.token !== 'string' || !data.token) {
-        throw new Error('El servidor no devolvió un token de acceso válido.')
-      }
-
-      const dni = String(data.user?.id || `local-${Date.now()}`)
+      const enteredDni = registerForm.dni.trim()
+      const dni = enteredDni && /^\d{8}$/.test(enteredDni)
+        ? enteredDni
+        : createUniqueDni(users)
       const salt = createSalt()
       const passwordHash = await hashPassword(registerForm.password, salt)
       const username = registerForm.username.trim() || createUniqueUsername(
@@ -769,7 +719,8 @@ function LoginPage() {
       const nextUsers = { ...users, [dni]: user }
       setUsers(nextUsers)
       saveUsers(nextUsers)
-      window.localStorage.setItem('token', data.token)
+      window.localStorage.setItem(SESSION_KEY, dni)
+      window.localStorage.removeItem('token')
       setSessionDni(dni)
       setApiSessionUser(null)
       setProfileForm({
@@ -851,6 +802,7 @@ function LoginPage() {
     setSessionDni('')
     setApiSessionUser(null)
     setIsAdmin(false)
+    window.localStorage.removeItem(SESSION_KEY)
     window.localStorage.removeItem('token')
     setDeleteAccountOpen(false)
     setAdminForm(EMPTY_ADMIN_FORM)
@@ -899,6 +851,7 @@ function LoginPage() {
     setSessionDni('')
     setApiSessionUser(null)
     setIsAdmin(false)
+    window.localStorage.removeItem(SESSION_KEY)
     window.localStorage.removeItem('token')
     setProfileForm({
       username: '',

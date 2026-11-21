@@ -1,23 +1,12 @@
 # React + Vite
 
-## Backend de autenticación
+## Autenticación local
 
-El frontend lee `VITE_AUTH_API_URL` durante la compilación. Configura esa variable
-en Vercel en **Project Settings → Environment Variables** con la URL base de
-autenticación completa, por ejemplo
-`https://gameweb-u50w.onrender.com/api/auth`. Las rutas (`/register` y `/login`)
-se agregan a esa base. El registro y el acceso usan únicamente correo y
-contraseña; el correo puede ser de prueba y no se envían códigos ni emails.
-Después de cambiar
-la variable, vuelve a desplegar el proyecto. Si no la defines, se utiliza
-`https://gameweb-u50w.onrender.com/api/auth`.
-
-El backend también debe permitir mediante CORS el dominio donde se despliega
-el frontend.
-
-Para desarrollo local, puedes copiar `.env.example` a `.env.local` y ajustar la
-URL a tu backend local. No guardes credenciales ni secretos en variables `VITE_*`:
-se incluyen en el bundle público del navegador.
+El registro y el inicio de sesión funcionan directamente con
+`localStorage` mediante las claves `gameweb_users` y `gameweb_session_dni`.
+No se requiere ningún proveedor externo, variable de entorno, código por correo
+ni configuración `JWT_SECRET`. Las contraseñas se guardan como un hash SHA-256
+con una sal aleatoria en el navegador.
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
